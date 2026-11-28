@@ -1119,23 +1119,71 @@ def test_shared_closeout_review_keeps_journaled_commit_recovery(shared_closeout,
     import launcher_worktrees
     import plan_launcher
 
-    root, run, spec, state, git, _owner = shared_closeout
-    preview = plan_launcher.review_ownership(root, spec, run.name, check=True)
-    plan_launcher.review_ownership(root, spec, run.name, approval=preview['approval'])
+    monkeypatch.setenv('GIT_CONFIG_NOSYSTEM', '1')
+    monkeypatch.setenv('GIT_CONFIG_GLOBAL', '/dev/null')
+    root, previous, spec, state, git, _owner = shared_closeout
+    remote = root.parent / 'origin.git'
+    git('init', '--bare', str(remote))
+    git('remote', 'add', 'origin', str(remote))
+    git('push', '--set-upstream', 'origin', 'main')
+    git('branch', 'server')
+    peer = root.parent / 'peer'
+    git('worktree', 'add', '--detach', str(peer), 'HEAD')
+    (peer / 'parallel.txt').write_text('Committed on server\n')
+    git('-C', str(peer), 'add', 'parallel.txt')
+    git('-C', str(peer), 'commit', '-m', 'Remote-only work')
+    server = git('-C', str(peer), 'rev-parse', 'HEAD')
+    git('-C', str(peer), 'push', 'origin', 'HEAD:refs/heads/server')
+    git('worktree', 'remove', str(peer))
+    git('branch', '--set-upstream-to=origin/server', 'server')
+    git('config', 'user.name', 'Test')
+    git('config', 'user.email', 'test@example.invalid')
+    (root / 'config').mkdir()
+    (root / 'config/environment.json').write_text(json.dumps(dict(families=[{}],
+        hosts=[dict(name=host, enabled='true', transport=transport, max_compute_unit=1)
+               for host, transport in [('local', 'local'), ('remote', 'ssh')]],
+        branches=[dict(name='main', host='local', repo_root=str(root)),
+                  dict(name='server', host='remote', repo_root=str(peer))])))
+    preview = plan_launcher.review_ownership(root, spec, previous.name, check=True)
+    plan_launcher.review_ownership(root, spec, previous.name, approval=preview['approval'])
     identity, parent = launcher_git.validate_pull_identity(root, state)
+    targets = launcher_worktrees.commit_skill_targets(root)
     state['commit_intent'] = dict(engine='skill', session='b' * 32, parent=parent,
-        paths=['shared.py'], message='Fixture closeout', targets=[], **identity,
-        ownership_review=json.loads((run / 'ownership-review.json').read_text()))
+        paths=['shared.py'], message='Fixture closeout', targets=targets, controller_remote=True,
+        **identity, ownership_review=json.loads((previous / 'ownership-review.json').read_text()))
     git('add', 'shared.py')
     git('commit', '-m', 'Journaled private commit')
     commit = git('rev-parse', 'HEAD')
-    sessions = launcher.private_directory(run / 'commit-skill')
+    git('push', 'origin', 'main')
+    git('fetch', 'origin', 'refs/heads/main')
+    fetch_head = git('rev-parse', 'FETCH_HEAD')
+    (root / 'parallel.txt').write_text('Untracked parallel work\n')
+    (root / 'shared.py').write_text('Staged parallel work\n')
+    git('add', 'shared.py')
+    (root / 'shared.py').write_text('Unstaged parallel work\n')
+    active = launcher_git.worktree_snapshot(root)
+    index = git('ls-files', '--stage')
+    stashes = git('stash', 'list')
+    worktrees = git('worktree', 'list', '--porcelain')
+    sessions = launcher.private_directory(previous / 'commit-skill')
     session = launcher.private_directory(sessions / ('b' * 32))
     launcher.atomic(session / 'progress.json', dict(source_commit=commit, pushed_head=commit))
     launcher.atomic(session / 'agent-result.json', dict(status='complete'))
-    monkeypatch.setattr(launcher_worktrees, 'commit_skill_targets', lambda *args, **kwargs: [])
+    state['recovery_run'] = str(previous)
+    run = launcher.private_directory(previous.parent / ('c' * 32))
+    launcher_git.retain_commit_skill_recovery(run, state)
     assert launcher_git._commit_with_skill(root, run, state, ['shared.py'], 'Fixture closeout',
                                           git=launcher_git.git_output) == commit
+    assert git('symbolic-ref', 'HEAD') == 'refs/heads/main'
+    assert git('rev-parse', 'HEAD') == commit
+    assert git('rev-parse', 'FETCH_HEAD') == fetch_head
+    assert git('rev-parse', 'server') == parent
+    git('merge-base', '--is-ancestor', commit, 'origin/server')
+    git('merge-base', '--is-ancestor', server, 'origin/server')
+    assert launcher_git.worktree_snapshot(root) == active
+    assert git('ls-files', '--stage') == index
+    assert git('stash', 'list') == stashes
+    assert git('worktree', 'list', '--porcelain') == worktrees
 
 
 def test_shared_closeout_reapproval_recovers_rejected_uncommitted_intent(shared_closeout, monkeypatch):

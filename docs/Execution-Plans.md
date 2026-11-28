@@ -671,12 +671,11 @@ supplies the pinned model/effort pair. Its supervised caller checks catalogue
 readiness before starting task supervision, retaining the executable check during
 preparation. Loading the shared Git modules or doing deterministic Git work
 requires no agent CLI.
-The skill owns
-the commit, source push and
-[shared worktree propagation](#shared-worktree-propagation). `execute-plan`
-inherits this policy. Only successful Git close-out counts the task against the
-run limit and permits selecting the next task. The controller delegates Git
-close-out to the skill after acceptance. If a pull changes HEAD, encounters merge conflicts or needs local
+After acceptance, the skill owns the commit, source push and propagation to
+registered same-host worktrees. The controller handles
+[propagation to branches on other hosts](#shared-worktree-propagation).
+Only successful Git close-out counts the task against the run limit and permits
+selecting the next task. If a pull changes HEAD, encounters merge conflicts or needs local
 edits reconciled, the same task returns to its coordinator before any completion
 commit. Resolve conflicts, complete any upstream merge, preserve unrelated work
 and original staging, and re-run acceptance whose inputs changed. The coordinator
@@ -756,11 +755,14 @@ Non-skill commit checkpoints are unsupported and require explicit Git
 reconciliation, preserving the checkpoint and saved work before resuming.
 The skill keeps a durable per-close-out Git journal under the retained run,
 recording its source commit before pushing and the exact pushed HEAD before
-destination writes. Restart resumes that journal with the same pinned commit.
+destination writes. A fresh run carries that journal and its result forward
+with the same pinned commit.
 The controller independently fetches every configured remote branch and checks
-that it contains the pinned commit before accepting completion. If the skill
-already returned complete, recovery retries only that independent verification,
-using its retained result and journal without starting another commit session.
+that it contains the pinned commit before accepting completion. Propagation and
+verification pin each fetch to a temporary worktree ref, leaving another
+session's `FETCH_HEAD` alone. If the skill
+already finished its assigned branches, recovery uses its retained result and
+journal to continue controller-owned propagation and verification.
 Verification reports fetch errors separately from missing remote ancestry and
 preserves Git diagnostics. Later task edits
 stay untouched and earn no acceptance credit.
@@ -772,9 +774,9 @@ retroactively committed by restart; preserve their changes for explicit close-ou
 
 ## Shared worktree propagation
 
-New launcher close-outs use the repository's
-[`$commit` skill](../.agents/skills/commit/SKILL.md) for the full workflow through
-`launcher_git.commit_push_propagate()`. The shared boundary retains the repository
+Launcher close-outs use `launcher_git.commit_push_propagate()` for the full
+workflow, including the repository's [`$commit` skill](../.agents/skills/commit/SKILL.md).
+The shared boundary retains the repository
 lock, accepted task context, branch/upstream identity and configured destinations.
 The skill preserves unrelated work and journals Git writes. Merge and saved-work
 restoration conflicts, including interrupted restorations, enter the skill's
@@ -796,10 +798,6 @@ task panel, replacing an earlier passing-test status with the close-out error.
 Panel reporting is best effort and must preserve the original Git failure if
 the task metadata cannot be read or written.
 
-The following placement rules apply to skill close-outs. Controller
-stash/merge/resolver recovery remains in use for safe-boundary pulls;
-close-outs follow the skill's ownership and recovery instructions.
-
 After a launcher pushes a task, optimization or verified repair commit, shared
 Git infrastructure propagates its pinned pushed HEAD to every other branch listed in
 [`config/environment.json`](../config/environment.json). Entries in `branches` declare
@@ -816,9 +814,12 @@ Missing or ambiguous remote destinations, existing Git operations or missing
 upstreams on checked-out branches refuse with an actionable retained checkpoint;
 the launcher never creates local branches or changes Git configuration.
 
-Remote destinations use a detached worktree inside the retained run allocation.
-The controller fetches the remote branch, merges the exact completion commit and
-pushes explicitly to that remote branch without force. Remote-only commits are
+For ordinary plan close-out, the controller fetches the exact remote branch.
+If it already contains the pinned commit, the controller records it as done.
+Otherwise it creates a detached worktree at the fetched commit inside the
+retained run allocation, merges the pinned commit and pushes explicitly to
+that remote branch without force. This works with concurrent edits in the
+source checkout and leaves unchecked local branch refs alone. Remote-only commits are
 preserved, and conflicts use the same unattended resolver as checked-out targets.
 The checkpoint retains checkout and remote identities across interruption; the
 temporary worktree is removed after its push succeeds. Unchecked local branches
@@ -885,7 +886,7 @@ receives those updates when its controller reaches a safe pull boundary; an
 inactive checkout receives them when its controller starts. No background service
 or remote checkout mutation is performed.
 
-For each destination, the controller records its branch, upstream, original
+For each checked-out destination, the transaction records its branch, upstream, original
 HEAD and a unique stash identity. It stashes staged, unstaged and untracked work
 with `git stash push -u` when needed, fetches and merges its configured upstream,
 and merges the source completion commit. The destination's active changes stay

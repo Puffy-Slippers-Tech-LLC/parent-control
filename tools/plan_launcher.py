@@ -29,8 +29,8 @@ from launcher_git import (GitReconciliationRequired, OwnershipReconciliationRequ
                           approved_ownership_review,
                           closeout_lock, commit_push_propagate, git_output,
                           ownership_review_snapshot, ownership_review_token,
-                          pull_before_commit, reconciliation_instructions, stage_task,
-                          session_changes, uncommitted_skill_intent,
+                          pull_before_commit, reconciliation_instructions, retain_commit_skill_recovery,
+                          session_changes, stage_task, uncommitted_skill_intent,
                           validate_closeout_ownership, validate_pull_identity, worktree_snapshot)
 from launcher_progress import publish_completion, publish_progress, session_lines, task_heading
 from launcher_reload import ReloadRequest, ReloadRequested, replace as replace_interpreter
@@ -949,6 +949,12 @@ def worker(root, run, owner, spec, state, *, reloading=False):
             if launcher.accept_stop(run):
                 reason = 'stopped at a session boundary'
                 break
+            if state['phase'] == 'complete':
+                limits = budget.read()
+                if limits.get('closed') or (limits['tasks'] is not None
+                        and limits['completed'] >= limits['tasks']):
+                    reason = 'task limit reached'
+                    break
             check_controller_sources()
             from launcher_worktrees import pull_at_boundary
             pull_at_boundary(root, run, state, selection=selection if capacity_retry(state) else None)
@@ -972,11 +978,6 @@ def worker(root, run, owner, spec, state, *, reloading=False):
                              if not task.complete), None)
                 if task is None:
                     reason = 'queue complete'
-                    break
-                limits = budget.read()
-                if limits.get('closed') or (limits['tasks'] is not None
-                        and limits['completed'] >= limits['tasks']):
-                    reason = 'task limit reached'
                     break
                 completed_state = state
                 pending = dict(state.get('suspended_tasks', {}))
@@ -1363,6 +1364,7 @@ def main(spec=PlanWorkflow('execute-plan'), argv=None):
                     str(root), str(selected), str(owner), json.dumps(asdict(spec))]
         def start(selected):
             TaskBudget(selected).initialize(args.tasks, remaining=initial_remaining)
+            retain_commit_skill_recovery(selected, initial)
             launcher.atomic(selected / 'checkpoint.json', initial)
             if initial_info:
                 launcher.atomic(selected / 'task-info.json', initial_info)

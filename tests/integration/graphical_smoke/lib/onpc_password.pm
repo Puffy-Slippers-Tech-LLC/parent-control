@@ -269,6 +269,9 @@ sub enter_kiosk_mate_password {
             my $saved_time = ($journey->{prefix} // '') =~ /\Asaved-time-(?:kiosk|overlay)\z/
                 && ($journey->{stage_prefix} // '') eq ''
                 && ref($request) eq 'ARRAY' && join(',', @$request) eq 'child,parent,600,0';
+            $saved_time ||= ($journey->{prefix} // '') eq 'saved-time-retained-unlock'
+                && ($journey->{stage_prefix} // '') eq ''
+                && ref($request) eq 'ARRAY' && join(',', @$request) eq 'child,parent,60,1';
             $game ||= game_permission_request($journey, 'kiosk');
             my $homework = homework_request($journey, 'kiosk');
             die 'secret:challenge' unless (family_request($journey, 'kiosk') || $homework || $temporary_access || $delayed || $grant_access || $app_restart || $idle || $app_transition || $process_update || $work_recovery || $expired_restart || $expired_daily || $daily_soft || $offline || $station_close || $calendar || $game || $reminders || $saved_work || $saved_time ||
@@ -317,6 +320,9 @@ sub enter_kiosk_mate_password {
                     || ($journey->{prefix} // '') eq 'expired-daily-replacement-profile-request'
                     || ($journey->{prefix} // '') =~ /\A(?:app-restart|sign-out-in|reboot|suspend-wake)-expired-profile-request\z/)
                 && ($journey->{stage_prefix} // '') eq 'profile-request-' && $long_request
+                || ($journey->{prefix} // '') eq 'saved-time-retained-unlock-profile-request'
+                && ($journey->{stage_prefix} // '') eq 'profile-request-'
+                && defined($wrong) && $wrong eq 'request-180'
                 || ($journey->{prefix} // '') eq 'countdown-combined-profile-request'
                 && ($journey->{stage_prefix} // '') eq 'profile-request-'
                 && defined($wrong) && $wrong eq 'request-240'

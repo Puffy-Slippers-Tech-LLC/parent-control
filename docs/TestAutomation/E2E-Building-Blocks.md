@@ -1566,7 +1566,10 @@ combine these actions with password entry, the public countdown and real use
 of a soft-blocked app. Case 267 qualifies return to a retained desktop.
 Case 268 uses the guarded [customer reboot route](#customer-reboot-continuity)
 and fresh password denial and success. Both cases measure the transfer and
-redemption intervals.
+redemption intervals. Case 269 adds `AccessibleUI.kiosk_saved_pause`, which
+activates the station's Pause timer, refuses any authentication prompt and
+waits for saved seconds with no running time. It shares the Pause activation
+with the overlay through `AccessibleUI.invoke_saved_pause`.
 
 #### Overlay Shell prompt and Cancel qualification
 

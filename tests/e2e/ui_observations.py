@@ -143,6 +143,7 @@ OPERATION_LABELS = {
     'kiosk-saved-tab-approved': 'Opening the station’s Approved time tab',
     'kiosk-saved-read': 'Reading the station’s approved and saved time',
     'kiosk-saved-use': 'Using the saved time at the station',
+    'kiosk-saved-pause': 'Pausing the timer at the station',
     'kiosk-saved-disabled': 'Reading Approved time for a child without screen limits',
     'kiosk-saved-rest-of-day': 'Checking that Rest of the day cannot be saved',
     'overlay-saved-tab-approved': 'Opening the child form’s Approved time tab',
@@ -982,6 +983,12 @@ def saved_time_result(operation, value):
         require(value == {'duration': 'rest-of-day', 'save_available': False,
                           'explanation': 'rest-of-day', 'menu_dismissed': True, 'form_open': True},
                 'ui:saved-time-rest-of-day')
+    elif action == 'pause' and surface == 'kiosk':
+        require(type(value) is dict and set(value) == {'paused', 'running_seconds', 'time'}
+                and value['paused'] is True
+                and type(value['running_seconds']) is int and value['running_seconds'] > 0,
+                'ui:saved-time-kiosk-pause')
+        saved_time_state(value['time'], surface)
     elif action == 'pause':
         require(type(value) is dict and set(value) == {'confirmation', 'running_seconds'}
                 and value['confirmation'] == 'pause-and-lock'

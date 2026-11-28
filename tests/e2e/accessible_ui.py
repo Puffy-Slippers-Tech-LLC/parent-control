@@ -1469,6 +1469,7 @@ SAVED_TIME_OPERATIONS = {
     'kiosk-saved-tab-approved': ('kiosk', 'tab', 'approved'),
     'kiosk-saved-read': ('kiosk', 'read', None),
     'kiosk-saved-use': ('kiosk', 'use', None),
+    'kiosk-saved-pause': ('kiosk', 'pause', None),
     'kiosk-saved-disabled': ('kiosk', 'disabled', None),
     'kiosk-saved-rest-of-day': ('kiosk', 'rest-of-day', None),
     'overlay-saved-tab-approved': ('overlay', 'tab', 'approved'),
@@ -12933,22 +12934,41 @@ class AccessibleUI:
                 and self.available(targets['kiosk-lock-confirm']), 'ui:saved-lock-dialog')
         return targets
 
+    def invoke_saved_pause(self, *, overlay):
+        """Activate Pause timer once: the footer action, or its menu beside saved time."""
+        child = self.saved_time_child(overlay)
+        before = self.wait(lambda: self.saved_time_state(overlay=overlay), 'saved-time-read')
+        require(before['state'] == 'ready' and before['actions']['pause'],
+                'ui:saved-time-pause-unavailable')
+        primary, menu, option = ('kiosk-approved-pause', 'kiosk-approved-menu',
+                                 'kiosk-approved-menu-pause')
+        targets = self.saved_time_targets((primary, menu, option), overlay=overlay, child=child)
+        if self.available(targets[menu]):
+            if not targets[menu].getValue():
+                self._invoke_target(targets[menu])
+            targets = self.saved_time_targets((option,), overlay=overlay, child=child)
+            self._invoke_target(targets[option])
+        else:
+            self._invoke_target(targets[primary])
+        return before
+
+    def kiosk_saved_pause(self):
+        """Pause at the station: no prompt, the running seconds become saved time."""
+        before = self.invoke_saved_pause(overlay=False)
+
+        def paused():
+            # The default wait refuses any authentication prompt.
+            value = self.saved_time_state(overlay=False)
+            return value if (value is not None and value['state'] == 'ready'
+                             and value['running_seconds'] == 0
+                             and value['saved_seconds'] > before['saved_seconds']) else None
+        return {'paused': True, 'running_seconds': before['running_seconds'],
+                'time': self.wait(paused, 'kiosk-saved-paused')}
+
     def overlay_saved_operation(self, action):
         child = self.saved_time_child(True)
         if action == 'pause':
-            before = self.wait(lambda: self.saved_time_state(overlay=True), 'saved-time-read')
-            require(before['state'] == 'ready' and before['actions']['pause'],
-                    'ui:saved-time-pause-unavailable')
-            primary, menu, option = ('kiosk-approved-pause', 'kiosk-approved-menu',
-                                     'kiosk-approved-menu-pause')
-            targets = self.saved_time_targets((primary, menu, option), overlay=True, child=child)
-            if self.available(targets[menu]):
-                if not targets[menu].getValue():
-                    self._invoke_target(targets[menu])
-                targets = self.saved_time_targets((option,), overlay=True, child=child)
-                self._invoke_target(targets[option])
-            else:
-                self._invoke_target(targets[primary])
+            before = self.invoke_saved_pause(overlay=True)
             self.wait(lambda: self.overlay_lock_dialog(child=child), 'saved-lock-dialog')
             return {'confirmation': 'pause-and-lock', 'running_seconds': before['running_seconds']}
         targets = self.overlay_lock_dialog(child=child)
@@ -12975,7 +12995,8 @@ class AccessibleUI:
                 return self.wait(lambda: self.saved_time_state(overlay=overlay), 'saved-time-read')
             if overlay:
                 return self.overlay_saved_operation(action)
-            return {'use': self.kiosk_saved_use, 'disabled': self.kiosk_saved_disabled,
+            return {'use': self.kiosk_saved_use, 'pause': self.kiosk_saved_pause,
+                    'disabled': self.kiosk_saved_disabled,
                     'rest-of-day': self.kiosk_saved_rest_of_day}[action]()
         except BaseException:
             # A missing result after accepted input cannot authorize replay.

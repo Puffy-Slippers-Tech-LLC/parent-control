@@ -75,6 +75,39 @@ the soft-blocked activity, observe the original allowance expire and require
 the existing restriction. Reopen the kiosk and verify the saved balance is
 empty. Keep all observations in the same attempt and restore the owned baseline.
 
+## Pause and reuse approved time at the kiosk
+
+Case **269**, `E2E-067/saved-time-kiosk-pause-reuse`, covers
+[Scenario 2](../Save-For-Later-Design.md#scenario-2-pause-existing-granted-time-in-the-kiosk-then-use-it-later).
+It composes `saved_time_kiosk_pause_reuse.PLAN` and
+`onpc_request_flow::saved_time_kiosk_pause_reuse`.
+
+Enable screen-time control with zero daily time and verify a zero grant in
+Parent. Jamie approves a real four-minute fixed grant at the kiosk. Riley signs
+in and switches through sign-in to the kiosk, keeping the locked desktop. Read
+the running seconds twice, two seconds apart, and require a decrease consistent
+with elapsed time. Click Pause timer. No parent prompt may appear. Compare the
+saved seconds with the last running reading less the bracketed pause interval
+and the [five-second transfer window](../Save-For-Later-Design.md#the-pause-step),
+with a two-second sampling allowance. Wait 15 seconds, reread, cancel to sign-in
+and reopen the kiosk. Read Jordan's disabled Approved time, then require Riley's
+unchanged saved seconds and zero running and daily time.
+
+Use saved time, observe Timer running and sign-in, and unlock Riley's same
+session with the ordinary password. Compare the panel countdown with the saved
+seconds less the interval since redemption. Switch to the kiosk, compare the
+running seconds the same way, pause and immediately use the new balance. Reopen
+the kiosk, compare the running seconds again and pause a third time. Each pause
+must stay at least 15 running seconds before the transfer; neither use is
+lengthened for navigation.
+
+Cancel to sign-in. Jamie unlocks the retained Parent window, reselects Riley,
+requires zero daily and one-time time, and confirms Revoke. Switch to the kiosk,
+require Jordan's identical Approved time and Riley's empty page without Use
+saved time. Approve Rest of the day without soft apps in the same form and
+observe the automatic return. Reopen the kiosk and require running time, no
+saved time and no Pause. End at sign-in and restore the owned baseline.
+
 <a id="c04b-baseline-public-use-slice"></a>
 
 ## Kiosk release notes and request return

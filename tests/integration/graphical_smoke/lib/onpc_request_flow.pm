@@ -868,6 +868,57 @@ sub saved_time_fresh_login {
     $journey->finish();
 }
 
+sub saved_time_kiosk_pause_reuse {
+    onpc_progress::operation('Pausing and reusing approved time at the kiosk');
+    my ($exchange, $declared, $challenges, $binding) = @_;
+    die 'saved-time-pause-reuse:binding' unless @_ == 4 && ref($exchange) eq 'CODE'
+        && ref($binding) eq 'ARRAY' && join(',', @$binding) eq 'child,parent,0,0';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'saved-time-kiosk-pause-reuse', review => 0);
+    $journey->{kiosk_request} = $binding;
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    my $leave_child = sub {
+        my ($prefix) = @_;
+        $journey->consume_observation("$prefix-switch-ready", $journey->seen("$prefix-switch-ready"));
+        $journey->seen("$prefix-$_") for qw(switch greeter retained-locked);
+    };
+    my $visit = sub {
+        my ($prefix, @stages) = @_;
+        onpc_gdm::enter_station($journey->scope($prefix), '');
+        $journey->seen($_) for @stages;
+    };
+
+    onpc_parent::grant_only_time_profile($journey, 'gdm', 'fresh', 'new', 0, 0, 240, 'default', 0);
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'child', 'fresh', 'success', 'fresh');
+    $leave_child->('first');
+    $visit->('running', qw(running-child running-tab running-read running-reread pause-first
+                          paused-reread paused-cancel paused-returned paused-retained-locked));
+    $visit->('reuse', qw(other-before reuse-child reuse-tab reuse-read use-first use-first-returned));
+
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'child', 'retained', 'success', 'retained');
+    $journey->seen($_) for qw(first-countdown first-identity);
+    $leave_child->('again');
+    $visit->('second', qw(second-child second-tab second-read pause-second use-second use-second-returned));
+    $visit->('third', qw(third-child third-tab third-read pause-third third-cancel third-returned));
+
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'parent', 'retained', 'success', 'revoke-parent');
+    $journey->consume_observation('revoke-entry-parent-retained',
+        onpc_parent::open_for_child($journey, 'desktop', 'same-user', 'retained', 'child', 'revoke-entry', 0));
+    $journey->seen($_) for qw(revoke-before revoke-open revoke-confirm);
+    my $leaving = $journey->scope('revoke-leave');
+    onpc_desktop_session::switch_user($leaving, $leaving->seen('desktop'));
+    $visit->('revoked', qw(other-after revoked-child revoked-tab revoked-read));
+
+    my $final = $journey->scope('final');
+    $final->{kiosk_request} = $binding;
+    $final->seen('request-tab');
+    prepare($final, 'new', 'open', 'observed', 'fixture-child', 'fixture-parent', 0, 0, 'kiosk');
+    approve($final, 'fixture-child', 'fixture-parent', 0, 0, 'automatic');
+    $visit->('deadline', qw(deadline-child deadline-tab deadline-read deadline-cancel deadline-returned));
+    $journey->finish();
+}
+
 sub kiosk_delayed_approval {
     onpc_progress::operation('Approving two station requests while preserving [Child user] work');
     my ($exchange, $declared, $challenges, $binding, $balance) = @_;

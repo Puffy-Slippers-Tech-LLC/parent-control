@@ -264,6 +264,9 @@ def test_approved_time_tabs_preserve_request_choices_and_show_combined_balances(
     ui.activate("kiosk-tab-approved")
     assert ui.getValue("kiosk-tab-approved") is True
     assert not ui.showing("kiosk-approver-selector")
+    assert not ui.showing("kiosk-request-submit")
+    assert not ui.showing("kiosk-request-status")
+    assert ui.showing("kiosk-request-cancel")
     assert ui.showing("kiosk-child-selector")
     assert ui.getValue("kiosk-child-selector") == "1001"
     assert ui.state("kiosk-child-selector", ui.api.StateType.SENSITIVE) is (not overlay)
@@ -274,6 +277,8 @@ def test_approved_time_tabs_preserve_request_choices_and_show_combined_balances(
 
     ui.setValue("kiosk-request-tabs", "request")
     assert ui.getValue("kiosk-tab-request") is True
+    assert ui.showing("kiosk-request-submit")
+    assert ui.showing("kiosk-request-status")
     assert ui.showing("kiosk-approver-selector")
     assert ui.getValue("kiosk-approver-selector") == "1010"
     assert ui.getValue("kiosk-duration") == "custom"

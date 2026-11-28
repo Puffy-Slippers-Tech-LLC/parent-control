@@ -398,7 +398,9 @@ class RequestContent(MetalBoard):
         self._accounts.set_hexpand(True)
         child_selector = self._account_row(m.CHILD, self._accounts, identity="child")
         self._body.append(child_selector)
-        self._pages = Gtk.Stack(hhomogeneous=False, vhomogeneous=False)
+        # The gateway measures the whole form to size its frame. Include both
+        # tabs and the request-only footer in that measurement.
+        self._pages = Gtk.Stack()
         self._body.append(self._pages)
 
         self._request_form = Gtk.Box(
@@ -535,9 +537,9 @@ class RequestContent(MetalBoard):
         self._filter_row = filter_row
         self._request_form.append(filter_row)
 
-        actions = Gtk.Box(spacing=6, margin_start=10, margin_end=10)
-        set_automation_id(actions, "kiosk-request-actions")
-        actions.add_css_class("oh-no-parent-control-actions")
+        self._actions = Gtk.Box(spacing=6, margin_start=10, margin_end=10)
+        set_automation_id(self._actions, "kiosk-request-actions")
+        self._actions.add_css_class("oh-no-parent-control-actions")
         self._request = localized(
             Gtk.Button, hexpand=True,
             child=localized(Gtk.Label, label=m.REQUEST_USE_NOW, wrap=True,
@@ -551,7 +553,9 @@ class RequestContent(MetalBoard):
         self._request.add_css_class("oh-no-parent-control-request-button")
         self._request.set_sensitive(False)
         self._request.connect("clicked", on_request)
-        self._request_split = self._build_request_split()
+        self._request_actions = Gtk.Stack(hexpand=True)
+        self._request_actions.add_named(self._build_request_split(), "request")
+        self._request_actions.add_named(Gtk.Box(), "approved")
 
         self._screen_limit_overlay = Gtk.Overlay()
         set_automation_id(self._screen_limit_overlay, "kiosk-screen-limit-overlay")
@@ -579,17 +583,17 @@ class RequestContent(MetalBoard):
             automation_id="kiosk-request-cancel",
         )
         self._cancel.connect("clicked", on_cancel)
-        actions.append(self._cancel)
-        actions.append(self._request_split)
-        self._body.append(actions)
-        self._status_row = MetalPanel(
+        self._actions.append(self._cancel)
+        self._actions.append(self._request_actions)
+        self._body.append(self._actions)
+        status_row = MetalPanel(
             orientation=Gtk.Orientation.VERTICAL,
             hexpand=True,
             panel_kind="footer",
         )
-        set_automation_id(self._status_row, "kiosk-request-status-panel")
-        self._status_row.add_css_class("oh-no-parent-control-status-row")
-        self._status_row.set_overflow(Gtk.Overflow.VISIBLE)
+        set_automation_id(status_row, "kiosk-request-status-panel")
+        status_row.add_css_class("oh-no-parent-control-status-row")
+        status_row.set_overflow(Gtk.Overflow.VISIBLE)
         status_inner = Gtk.Box(
             orientation=Gtk.Orientation.VERTICAL,
             spacing=8,
@@ -607,8 +611,11 @@ class RequestContent(MetalBoard):
                                                    lambda *_: self._run_grant_action("retry"))
         self._request_retry.set_halign(Gtk.Align.START)
         status_inner.append(self._request_retry)
-        self._status_row.append(status_inner)
-        self._body.append(self._status_row)
+        status_row.append(status_inner)
+        self._status_pages = Gtk.Stack()
+        self._status_pages.add_named(status_row, "request")
+        self._status_pages.add_named(Gtk.Box(), "approved")
+        self._body.append(self._status_pages)
         self._pages.set_visible_child_name("request")
         self._sync_tabs()
         self._update_controls()
@@ -652,21 +659,19 @@ class RequestContent(MetalBoard):
         if name == self._pages.get_visible_child_name():
             return
         self.dismiss_request_menu()
-        self._accounts.collapse()
-        self._approvers.collapse()
         self._pages.set_visible_child_name(name)
         self._sync_tabs()
-        self.tick_grant_view()
 
     def _sync_tabs(self):
         active = self._pages.get_visible_child_name()
         self._tabs[active].set_active(True)
         for name, button in self._tabs.items():
             button.update_state([Gtk.AccessibleState.SELECTED], [name == active])
-        request = active == "request"
-        self._request_split.set_visible(request)
-        self._status_row.set_visible(request)
-        self._cancel.get_parent().set_halign(Gtk.Align.FILL if request else Gtk.Align.END)
+        self._request_actions.set_visible_child_name(active)
+        self._status_pages.set_visible_child_name(active)
+        self._actions.reorder_child_after(
+            self._cancel, self._request_actions if active == "approved" else None,
+        )
 
     def _tab_key_pressed(self, _controller, keyval, _keycode, modifiers):
         if modifiers & Gtk.accelerator_get_default_mod_mask():
@@ -741,7 +746,8 @@ class RequestContent(MetalBoard):
         return True
 
     def _build_approved_page(self):
-        page = MetalPanel(orientation=Gtk.Orientation.VERTICAL, spacing=10, panel_kind="well")
+        page = MetalPanel(orientation=Gtk.Orientation.VERTICAL, spacing=10,
+                          panel_kind="well", valign=Gtk.Align.START)
         set_automation_id(page, "kiosk-approved-page")
         page.set_margin_start(10)
         page.set_margin_end(10)
@@ -848,7 +854,7 @@ class RequestContent(MetalBoard):
         return self._grant_view.revision if self._displayed_grant() is not None else None
 
     def tick_grant_view(self):
-        if self._grant_view is not None and self._pages.get_visible_child_name() == "approved":
+        if self._grant_view is not None:
             self._render_approved()
         return GLib.SOURCE_CONTINUE
 

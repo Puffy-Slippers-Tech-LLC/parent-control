@@ -144,7 +144,8 @@ the shared form's responsive layout at different display scales.
 
 Both tabs share the footer positions for Cancel on the left and the primary
 action on the right. The Approved time panel fills the space above these
-buttons and contains only balances, status and hints. Its footer uses
+buttons and contains only balances, status and hints, vertically centered as a
+group. Its footer uses
 **Use saved time** when saved time is available and **Pause timer** when there
 is only a pausable timer. If both are available, **Add saved time to the timer**
 is the primary action and the chevron opens **Pause timer**. **Try again** takes

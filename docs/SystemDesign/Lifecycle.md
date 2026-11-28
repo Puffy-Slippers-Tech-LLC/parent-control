@@ -187,6 +187,13 @@ Ubuntu pam-auth-update or Fedora authselect while preserving opaque vendor polic
 ordinary authentication, administrator denials and time/runtime-cap behavior.
 There is no executable inventory/private-view admission mechanism.
 
+On Fedora with the standard targeted SELinux policy active, configuration
+loads the packaged SSH admission module before activating the PAM profile. Erasure
+restores the original PAM profile before removing the module from that
+same policy store. An interrupted policy change is retried before the
+package records the change as complete. Configuration and erasure
+preserve policy supplied by the administrator.
+
 The dedicated [session](../../data/gnome-session/sessions/oh-no-parent-control.session)
 and [target](../../data/systemd/user/gnome-session@oh-no-parent-control.target.d/session.conf)
 use distribution GNOME Session/Kiosk, require the form, want notifications/vendor

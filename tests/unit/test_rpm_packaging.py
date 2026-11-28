@@ -98,6 +98,12 @@ def test_fedora_payload_shares_runtime_and_has_native_integrations(fedora_payloa
     assert files['usr/libexec/oh-no-parent-control-migrate-state']['activation'] == 'none'
     assert files['usr/lib64/security/pam_oh_no_parent_control.so']['activation'] == 'session-renewal'
     assert files['usr/libexec/oh-no-parent-control-kiosk-lifecycle']['activation'] == 'none'
+    ssh_policy = 'usr/share/oh-no-parent-control/pam/onpc-ssh-accounts.cil'
+    assert (payload / ssh_policy).read_bytes() == (ROOT / 'data/pam-configs/onpc-ssh-accounts.cil').read_bytes()
+    assert files[ssh_policy]['activation'] == 'none'
+    policy_adapter = 'usr/lib/oh-no-parent-control/lifecycle/fedora_selinux.py'
+    assert (payload / policy_adapter).read_bytes() == (ROOT / 'packaging/fedora_selinux.py').read_bytes()
+    assert files[policy_adapter]['activation'] == 'none'
     accounts_dropin = 'usr/lib/systemd/system/accounts-daemon.service.d/oh-no-parent-control.conf'
     accounts = (payload / accounts_dropin).read_bytes()
     assert accounts == (

@@ -875,7 +875,7 @@ def main(arguments=None):
     try:
         if args.action == 'commit':
             import distro_pam
-            commit_migration(lambda: distro_pam.runtime_ready(args.distribution))
+            commit_migration(lambda: distro_pam.runtime_ready(args.distribution, state_locked=True))
             retire_policy()
         elif args.action == 'capture':
             capture_policy()

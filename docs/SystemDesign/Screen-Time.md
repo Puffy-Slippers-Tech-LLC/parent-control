@@ -761,6 +761,12 @@ package triggers failing to reach an exhausted child's manager with
 the change on its next invocation (`none`), on both Ubuntu and Fedora, without
 changing saved limits or restarting user managers.
 
+On Fedora, the package supplies a narrow SELinux rule for the SSH PAM check.
+It permits D-Bus requests and replies between the OpenSSH session domain and
+AccountsService so the usual unrestricted-account and Malcontent checks can
+read the live limits. The existing AccountsService authorization, SSH
+authentication, PAM denial at zero time, and session cap still apply.
+
 The [package classifier](../../packaging/package_activation.py) gives the selected
 PAM profiles and login helper next-invocation activation (`none`). A replacement
 `pam_oh_no_parent_control.so` requires `session-renewal`; the external

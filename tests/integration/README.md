@@ -1048,6 +1048,11 @@ an unconfined synthetic caller must not create that inode with a different type.
 The fixture changes no policy or runtime-lock label and cleans up its own
 interpreter after success or failure.
 
+The Fedora SSH time-admission case (ID 322) uses OpenSSH with an attempt-owned
+key and SELinux enforcing. It observes a remote child session while time remains.
+After the parent sets available time to zero, OpenSSH accepts the key and PAM
+refuses to open a session for the account.
+
 The [current engineering disposition map](../../docs/SystemDesign/Kiosk-Confinement.md#c04a-installed-engineering-dispositions)
 owns cases 267–271 and 289–294. Only 267 (installed session composition),
 268 (account/routing admission) and 271 (ordinary-role controls) retain assertions,

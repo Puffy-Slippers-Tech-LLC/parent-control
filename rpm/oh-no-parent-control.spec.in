@@ -56,6 +56,7 @@ Requires:       gtk4
 Requires:       hicolor-icon-theme
 Requires:       libadwaita
 Requires:       libselinux
+Requires:       libsemanage
 Requires:       lmdb-libs
 Requires:       malcontent >= 0.14.0
 Requires:       malcontent-libs >= 0.14.0
@@ -82,6 +83,7 @@ Requires(pre):  systemd
 Requires(preun): authselect
 Requires(preun): coreutils
 Requires(preun): findutils
+Requires(preun): libsemanage
 Requires(preun): python3
 Requires(preun): systemd
 Requires(preun): util-linux

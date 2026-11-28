@@ -1,4 +1,9 @@
 {
+  "E2E-066": {
+    "summary": "Save approved time at the kiosk, then use it to unlock the same desktop.",
+    "expected": "The kiosk saves the unused grant and the new minute together. Using the balance once restores access and soft-blocked app use until time runs out.",
+    "steps": ["Give Riley three minutes, open the soft-blocked app, then lock and check that time still counts down at the kiosk.", "Have Jamie approve one custom minute for later. Compare the saved balance, check that the desktop is still restricted, and read the same balance after reopening.", "Start the saved time once, unlock with Riley's password, and check the elapsed time and original soft-blocked app.", "Wait for the restriction to return and confirm that the kiosk offers no saved time to use again."]
+  },
   "E2E-065": {
     "expected": "Both default warnings arrive naturally, custom text stays literal, fullscreen choices govern the same warning, renewal rearms it and reboot retains each child's independent choices.",
     "summary": "Follow Riley's warnings during work and fullscreen play, then check both children after restart.",

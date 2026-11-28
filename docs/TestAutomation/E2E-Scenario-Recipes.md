@@ -13,6 +13,43 @@ remain engineering obligations outside the UI inventory. Preserve current
 bindings and functional assertions. A block qualification does not establish
 a complete scenario result; the inventory owns readiness.
 
+## Save and use a running grant at the kiosk
+
+Case **267**, `E2E-066/saved-time-retained-unlock`, covers the retained desktop
+branch of [Scenario 1](../Save-For-Later-Design.md#scenario-1-approve-in-the-kiosk-save-the-combined-grant-use-it-later).
+Case **268** is the pending reboot and fresh-login branch.
+
+Prepare Riley's allowed and soft-blocked native activities and Jamie's normal
+approval route before starting the short grant. Enable screen-time control and
+verify zero daily and granted time in Parent. Jamie approves a real three-minute
+fixed grant with soft apps included. Riley signs in, submits recognizable work,
+opens the soft-blocked activity, and leaves both open. Lock Riley's desktop and
+switch through sign-in to the kiosk. Sample the running approved seconds twice
+before opening the parent prompt. Require a positive decrease consistent with
+elapsed time, no saved time or daily time, and at least 45 running seconds at the
+second reading. Navigation and preparation share the original grant deadline.
+
+Select Riley and Jamie, enter exactly `1` in Custom Minutes, include soft apps,
+and authenticate Jamie once in deferred mode. Compare the kiosk's exact saved
+seconds to the second running sample plus 60, subtracting elapsed time through
+the independently bracketed approval plus the [five-second transfer window](../Save-For-Later-Design.md#the-pause-step).
+Use a two-second allowance for whole-second sampling. Require that the resulting
+running and daily balances are zero. Cancel
+to sign-in and observe the exhausted native restriction on Riley's retained
+desktop. Return to sign-in, reopen the kiosk, and require the same saved seconds.
+
+Use saved time once. Observe Timer running, then normal sign-in. Authenticate
+Riley with the ordinary password and confirm the same session. Read the panel's
+public second value against the elapsed interval bracketed by redemption and
+the post-unlock reading. Require a positive deduction and enough time to verify
+the original soft-blocked activity through its public action and result. Use the
+shared [natural-expiry observer](E2E-Building-Blocks.md#natural-enforced-lock-qualification)
+from that redeemed allowance and observe the native time restriction. Reopen the
+kiosk and require zero running, saved and daily balances and no Use saved time
+action. End at sign-in and restore the owned baseline. The 1,800-second attempt
+budget includes preparation and cleanup. Neither actual grant is lengthened for
+navigation or observation.
+
 <a id="c04b-baseline-public-use-slice"></a>
 
 ## Kiosk release notes and request return

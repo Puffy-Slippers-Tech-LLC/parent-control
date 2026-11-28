@@ -17,7 +17,6 @@ a complete scenario result; the inventory owns readiness.
 
 Case **267**, `E2E-066/saved-time-retained-unlock`, covers the retained desktop
 branch of [Scenario 1](../Save-For-Later-Design.md#scenario-1-approve-in-the-kiosk-save-the-combined-grant-use-it-later).
-Case **268** is the pending reboot and fresh-login branch.
 
 Prepare Riley's allowed and soft-blocked native activities and Jamie's normal
 approval route before starting the short grant. Enable screen-time control and
@@ -49,6 +48,32 @@ kiosk and require zero running, saved and daily balances and no Use saved time
 action. End at sign-in and restore the owned baseline. The 1,800-second attempt
 budget includes preparation and cleanup. Neither actual grant is lengthened for
 navigation or observation.
+
+Case **268**, `E2E-066/saved-time-fresh-login`, composes
+`saved_time_fresh_login.PLAN` and `onpc_request_flow::saved_time_fresh_login`.
+Prepare the same child app rules and zero daily time. Start at sign-in with no
+child desktop and verify an empty Approved time page. Approve three fixed
+minutes for later and require exactly 180 saved seconds and zero running
+seconds. Cancel a 75-second immediate request at the native parent prompt and
+require the same balance. Approve a separate immediate three-minute request,
+observe the kiosk return to sign-in and reenter. Require the saved 180 seconds
+alongside a running grant and measure its decrease before the transfer.
+
+Save one custom minute with soft apps included. Require the previous saved
+180 seconds plus 60 new seconds and the remaining grant at the same measured
+transfer boundary as in the retained branch. After normal kiosk exit, request
+one ordinary reboot using the [customer reboot route](../../tests/e2e/README.md#customer-reboot-observation-boundary).
+Require a changed boot and fresh sign-in, then read the same saved balance with
+zero running time. Try one fresh child password entry and require the normal
+exhausted-time refusal. Return to sign-in, reopen the kiosk and confirm the
+same balance again before redemption.
+
+Use saved time once and require Timer running, normal return to sign-in, and
+fresh password entry to the child desktop. Compare the public countdown with
+the saved seconds less the interval between redemption and the panel read. Use
+the soft-blocked activity, observe the original allowance expire and require
+the existing restriction. Reopen the kiosk and verify the saved balance is
+empty. Keep all observations in the same attempt and restore the owned baseline.
 
 <a id="c04b-baseline-public-use-slice"></a>
 

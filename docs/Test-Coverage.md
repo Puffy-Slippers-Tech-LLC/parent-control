@@ -17,8 +17,8 @@ Each VM family column uses the [ONPC: Watch accounting](../tests/README.md#aggre
 | graphical-worker | 1 | — | — | — | Checks privileged graphical worker containment with isolated host fixtures. |
 | package-notice | 1 | — | — | — | Checks native package-manager notices in isolated host fixtures. |
 | Installed system | — | 127 | 116 | 116 | Checks installed behavior, lifecycle integration and engineering safety boundaries. |
-| E2E | — | 139 | 141 | 141 | Checks complete customer journeys through the installed product’s public interfaces. |
-| **Total** | **6386** | **266** | **257** | **257** |  |
+| E2E | — | 140 | 142 | 142 | Checks complete customer journeys through the installed product’s public interfaces. |
+| **Total** | **6386** | **267** | **258** | **258** |  |
 
 VM totals include selected installed-system phases, registered standalone checks and runnable E2E variants. Platform filters and additional GNOME Classic executions can change the total by family.
 
@@ -28,9 +28,9 @@ The host inventory counts parametrized Python cases and executable script entrie
 
 | Subcategory | Count (Ready/Pending/Total) |
 | --- | ---: |
-| customer-journey | <span style="color: green">139</span>/<span style="color: gray">44</span>/183 |
+| customer-journey | <span style="color: green">140</span>/<span style="color: gray">43</span>/183 |
 | runner-smoke | <span style="color: green">0</span>/<span style="color: gray">1</span>/1 |
-| **Total** | **<span style="color: green">139</span>/<span style="color: gray">45</span>/184** |
+| **Total** | **<span style="color: green">140</span>/<span style="color: gray">44</span>/184** |
 
 Each number selects exactly one variant. IDs are stored in `tests/e2e/scenarios.json` and stay unchanged when entries are reordered or become ready. Assign new variants fresh IDs; never renumber or reuse an existing ID.
 
@@ -179,6 +179,7 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [265](#scenario-265) | Riley reads upgrade notes and returns to the same request | `E2E-064/kiosk` | ready |
 | [266](#scenario-266) | Each child receives their saved warnings before time runs out | `E2E-065/warnings-play-renewal-reboot` | ready |
 | [267](#scenario-267) | Save a running grant at the kiosk and use it later (return: retained unlock) | `E2E-066/saved-time-retained-unlock` | ready |
+| [268](#scenario-268) | Save a running grant at the kiosk and use it later (return: fresh login) | `E2E-066/saved-time-fresh-login` | ready |
 | <span style="color: gray">[1](#scenario-1)</span> | <span style="color: gray">Fresh boot and graphical/observation transport</span> | <span style="color: gray">`E2E-001/gdm-observation`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[6](#scenario-6)</span> | <span style="color: gray">Standard user cannot manage policy (launch: terminal)</span> | <span style="color: gray">`E2E-004/terminal`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[38](#scenario-38)</span> | <span style="color: gray">Shared duration boundaries and duplicate submission (choice: predefined; surface: child overlay)</span> | <span style="color: gray">`E2E-014/child-overlay-predefined`</span> | <span style="color: gray">pending</span> |
@@ -223,7 +224,6 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | <span style="color: gray">[230](#scenario-230)</span> | <span style="color: gray">Approve after the displayed estimate has aged (balance: grant dominant; surface: kiosk)</span> | <span style="color: gray">`E2E-048/grant-dominant-kiosk`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[239](#scenario-239)</span> | <span style="color: gray">Change temporary app permission on every supported launch route (route: snap grid; surface: child overlay)</span> | <span style="color: gray">`E2E-049/snap-grid-child-overlay`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[242](#scenario-242)</span> | <span style="color: gray">Change temporary app permission on every supported launch route (route: snap command; surface: kiosk)</span> | <span style="color: gray">`E2E-049/snap-command-kiosk`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[268](#scenario-268)</span> | <span style="color: gray">Save a running grant at the kiosk and use it later (return: fresh login)</span> | <span style="color: gray">`E2E-066/saved-time-fresh-login`</span> | <span style="color: gray">pending</span> |
 
 ### Scenario 2
 
@@ -2200,9 +2200,24 @@ Variant: return: retained unlock
 
 **Steps:**
 
-- At zero daily time, approve a three-minute fixed grant, open child activity, and switch to the kiosk while the grant still runs. Read the running balance twice before starting deferred approval.
-- Authenticate the selected parent for one custom minute with soft-blocked apps included. Compare the saved total with the remaining grant at transfer, confirm saved time alone leaves access restricted, and reread it after the kiosk closes and reopens.
-- Start saved time once and observe return to sign-in. Use ordinary child credentials and verify the return consumes time. The retained variant compares the original desktop and usable soft-blocked activity. The fresh variant reboots with saved time before redemption and signs in to a new desktop.
+- At zero daily time, approve a three-minute fixed grant. For retained unlock, open child activity and switch to the kiosk. For fresh login, first save three minutes without starting the timer, cancel an immediate request, then approve three immediate minutes and verify the saved balance remains. Read the running balance twice before deferred approval.
+- Authenticate the selected parent for one custom minute with soft-blocked apps included. Compare the saved total with the running time at transfer plus the approved minute and any previous saved balance. For fresh login, reboot and verify the same balance. Confirm saved time alone leaves access restricted and reread the unchanged saved balance after the attempt.
+- Start saved time once and observe return to sign-in. Use ordinary child credentials and verify that the countdown reflects the elapsed time. Confirm the original desktop for retained unlock or a fresh desktop after reboot, and use the soft-blocked activity.
+- Let the original redeemed allowance expire naturally, verify the native time restriction, and confirm that the saved balance is gone and cannot be started again.
+
+### Scenario 268
+
+**Save a running grant at the kiosk and use it later (return: fresh login)**
+
+Case: `E2E-066/saved-time-fresh-login` · Category: customer-journey · Status: **ready**
+
+Variant: return: fresh login
+
+**Steps:**
+
+- At zero daily time, approve a three-minute fixed grant. For retained unlock, open child activity and switch to the kiosk. For fresh login, first save three minutes without starting the timer, cancel an immediate request, then approve three immediate minutes and verify the saved balance remains. Read the running balance twice before deferred approval.
+- Authenticate the selected parent for one custom minute with soft-blocked apps included. Compare the saved total with the running time at transfer plus the approved minute and any previous saved balance. For fresh login, reboot and verify the same balance. Confirm saved time alone leaves access restricted and reread the unchanged saved balance after the attempt.
+- Start saved time once and observe return to sign-in. Use ordinary child credentials and verify that the countdown reflects the elapsed time. Confirm the original desktop for retained unlock or a fresh desktop after reboot, and use the soft-blocked activity.
 - Let the original redeemed allowance expire naturally, verify the native time restriction, and confirm that the saved balance is gone and cannot be started again.
 
 <div style="color: gray">
@@ -3082,26 +3097,5 @@ Variant: route: snap command; surface: kiosk
 - Reopen the child's App Limits and read the original saved access rules. Temporary approvals must not rewrite them. Check every intermediate result rather than accepting only the final excluded state.
 
 Pending: Deferred from active E2E scheduling by developer decision on 2026-11-05: known Snap admission/closure limitations in docs/Snap\_Limitation.md. Separate remediation and explicit reactivation required; no acceptance credit or executable.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 268
-
-**Save a running grant at the kiosk and use it later (return: fresh login)**
-
-Case: `E2E-066/saved-time-fresh-login` · Category: customer-journey · Status: **pending**
-
-Variant: return: fresh login
-
-**Steps:**
-
-- At zero daily time, approve a three-minute fixed grant, open child activity, and switch to the kiosk while the grant still runs. Read the running balance twice before starting deferred approval.
-- Authenticate the selected parent for one custom minute with soft-blocked apps included. Compare the saved total with the remaining grant at transfer, confirm saved time alone leaves access restricted, and reread it after the kiosk closes and reopens.
-- Start saved time once and observe return to sign-in. Use ordinary child credentials and verify the return consumes time. The retained variant compares the original desktop and usable soft-blocked activity. The fresh variant reboots with saved time before redemption and signs in to a new desktop.
-- Let the original redeemed allowance expire naturally, verify the native time restriction, and confirm that the saved balance is gone and cannot be started again.
-
-Pending: The reboot and fresh-login history is pending implementation in task 019.
 
 </div>

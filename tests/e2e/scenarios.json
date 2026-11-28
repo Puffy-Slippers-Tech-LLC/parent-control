@@ -23,9 +23,9 @@
         "setup": [{"id": "setup", "operation": "provision", "description": "Restore the installed snapshot and bind fixture accounts and assets."}],
         "start": [{"id": "start", "operation": "begin", "description": "Begin an independent attempt at normal sign-in."}],
         "steps": [
-          {"id": "step-1", "operation": "ui", "description": "At zero daily time, approve a three-minute fixed grant, open child activity, and switch to the kiosk while the grant still runs. Read the running balance twice before starting deferred approval."},
-          {"id": "step-2", "operation": "ui", "description": "Authenticate the selected parent for one custom minute with soft-blocked apps included. Compare the saved total with the remaining grant at transfer, confirm saved time alone leaves access restricted, and reread it after the kiosk closes and reopens."},
-          {"id": "step-3", "operation": "ui", "description": "Start saved time once and observe return to sign-in. Use ordinary child credentials and verify the return consumes time. The retained variant compares the original desktop and usable soft-blocked activity. The fresh variant reboots with saved time before redemption and signs in to a new desktop."},
+          {"id": "step-1", "operation": "ui", "description": "At zero daily time, approve a three-minute fixed grant. For retained unlock, open child activity and switch to the kiosk. For fresh login, first save three minutes without starting the timer, cancel an immediate request, then approve three immediate minutes and verify the saved balance remains. Read the running balance twice before deferred approval."},
+          {"id": "step-2", "operation": "ui", "description": "Authenticate the selected parent for one custom minute with soft-blocked apps included. Compare the saved total with the running time at transfer plus the approved minute and any previous saved balance. For fresh login, reboot and verify the same balance. Confirm saved time alone leaves access restricted and reread the unchanged saved balance after the attempt."},
+          {"id": "step-3", "operation": "ui", "description": "Start saved time once and observe return to sign-in. Use ordinary child credentials and verify that the countdown reflects the elapsed time. Confirm the original desktop for retained unlock or a fresh desktop after reboot, and use the soft-blocked activity."},
           {"id": "step-4", "operation": "wait", "description": "Let the original redeemed allowance expire naturally, verify the native time restriction, and confirm that the saved balance is gone and cannot be started again."}
         ],
         "end": [{"id": "end", "operation": "collect", "description": "Reconcile the public readings, session continuity and owned worker shutdown."}],
@@ -35,7 +35,7 @@
       "assertions": {
         "visible": [
           {"id": "running-time-elapses", "step_id": "step-1", "description": "The kiosk's running balance decreases before deferred approval."},
-          {"id": "time-saved-and-stable", "step_id": "step-2", "description": "The measured transfer conserves the remaining running seconds plus sixty, and the saved balance stays stable without admitting the child."},
+          {"id": "time-saved-and-stable", "step_id": "step-2", "description": "The measured transfer conserves the remaining running seconds, the approved minute and any previous saved balance. The saved balance stays stable without admitting the child."},
           {"id": "saved-time-restores-access", "step_id": "step-3", "description": "One use starts time before sign-in. The child enters through ordinary authentication with the elapsed interval deducted and can use the soft-blocked activity under the saved choice."},
           {"id": "restriction-returns-without-saved-copy", "step_id": "step-4", "description": "Natural expiry restores the native restriction. The station offers no repeated use of the spent balance."}
         ],
@@ -46,7 +46,7 @@
       "matrix": {"dimensions": {"return": ["retained-unlock", "fresh-login"]}, "full_combinations": [], "rationale": "The two histories distinguish retaining and unlocking an existing desktop from saving through reboot and starting a new desktop."},
       "variants": [
         {"coverage_id": 267, "id": "saved-time-retained-unlock", "owner": "child-access", "parameters": {"return": "retained-unlock"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/saved_time_retained_unlock.py", "test_id": "saved-time-retained-unlock"}},
-        {"coverage_id": 268, "id": "saved-time-fresh-login", "owner": "child-access", "parameters": {"return": "fresh-login"}, "status": "pending", "pending_reason": "The reboot and fresh-login history is pending implementation in task 019.", "executable": null}
+        {"coverage_id": 268, "id": "saved-time-fresh-login", "owner": "child-access", "parameters": {"return": "fresh-login"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/saved_time_fresh_login.py", "test_id": "saved-time-fresh-login"}}
       ]
     },
     {

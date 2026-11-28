@@ -523,14 +523,17 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn("if self._state.in_flight:\n            return False", source)
         self.assertIn("self._cancel()\n        return True", source)
 
-    def test_escape_dismisses_request_menu_before_it_can_cancel_the_form(self):
+    def test_escape_dismisses_request_popups_before_it_can_cancel_the_form(self):
         from oh_no_parent_control_kiosk.main import Gdk, RequestWindow
 
-        content = SimpleNamespace(dismiss_request_menu=Mock(side_effect=[True, False]),
+        content = SimpleNamespace(dismiss_request_menu=Mock(side_effect=[True, False, False]),
+                                  dismiss_account_choices=Mock(side_effect=[True, False]),
                                   can_cancel=lambda: True)
         window = SimpleNamespace(_request_content=content, _cancel=Mock(),
                                  _state=SimpleNamespace(in_flight=False),
                                  _stack=SimpleNamespace(get_visible_child_name=lambda: "request"))
+        assert RequestWindow._escape_pressed(window, None, Gdk.KEY_Escape, 0, 0)
+        window._cancel.assert_not_called()
         assert RequestWindow._escape_pressed(window, None, Gdk.KEY_Escape, 0, 0)
         window._cancel.assert_not_called()
         assert RequestWindow._escape_pressed(window, None, Gdk.KEY_Escape, 0, 0)

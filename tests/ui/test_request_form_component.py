@@ -761,7 +761,8 @@ def test_kiosk_child_selection_reloads_that_childs_preferences(
     path = open_request(launch_ui, tmp_path, ui, wait_for_accessible_state,
                         overlay=False)
     ready(ui, wait_for_accessible_state)
-    ui.setValue("kiosk-child-selector", "1002")
+    ui.activate("kiosk-child-selector")
+    ui.activate("kiosk-child-choice-1002")
     wait_for_accessible_state(
         lambda: any(call["values"] == [1002] for call in calls(path, "GetPreferences")),
         "selected child's preferences",

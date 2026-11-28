@@ -1460,7 +1460,32 @@ KIOSK_BOUND_OPERATIONS = frozenset({*BOUND_MATE_ORDER, 'kiosk-request-select',
                                   'kiosk-request-estimate', 'child-countdown-present'})
 MATE_APPROVAL_OPERATIONS |= frozenset(BOUND_MATE_ORDER)
 KIOSK_VALID_OPERATIONS |= {'kiosk-request-estimate'}
-OPERATIONS |= KIOSK_BOUND_OPERATIONS
+# Saved-time controls on the shared form. The bound request supplies the
+# child; deferred approval submits through the split menu's save action.
+SAVED_MATE_ORDER = tuple('kiosk-saved-mate-' + suffix for suffix in
+                         ('open', 'qualified', 'rechecked', 'submit-success'))
+SAVED_TIME_OPERATIONS = {
+    'kiosk-saved-tab-request': ('kiosk', 'tab', 'request'),
+    'kiosk-saved-tab-approved': ('kiosk', 'tab', 'approved'),
+    'kiosk-saved-read': ('kiosk', 'read', None),
+    'kiosk-saved-use': ('kiosk', 'use', None),
+    'kiosk-saved-disabled': ('kiosk', 'disabled', None),
+    'kiosk-saved-rest-of-day': ('kiosk', 'rest-of-day', None),
+    'overlay-saved-tab-approved': ('overlay', 'tab', 'approved'),
+    'overlay-saved-read': ('overlay', 'read', None),
+    'overlay-saved-pause': ('overlay', 'pause', None),
+    'overlay-saved-lock-cancel': ('overlay', 'lock-cancel', None),
+    'overlay-saved-lock-confirm': ('overlay', 'lock-confirm', None),
+}
+SAVED_TIME_ACTIONS = {'pause': 'kiosk-approved-pause', 'use_saved': 'kiosk-approved-use-saved',
+                      'request_more': 'kiosk-approved-request-more', 'retry': 'kiosk-approved-retry'}
+KIOSK_BOUND_OPERATIONS |= frozenset(SAVED_MATE_ORDER) | frozenset(
+    operation for operation, (surface, *_rest) in SAVED_TIME_OPERATIONS.items() if surface == 'kiosk')
+OVERLAY_BOUND_OPERATIONS |= frozenset(
+    operation for operation, (surface, *_rest) in SAVED_TIME_OPERATIONS.items() if surface == 'overlay')
+CHILD_DESKTOP_OPERATIONS |= OVERLAY_BOUND_OPERATIONS & frozenset(SAVED_TIME_OPERATIONS)
+MATE_APPROVAL_OPERATIONS |= frozenset(SAVED_MATE_ORDER)
+OPERATIONS |= KIOSK_BOUND_OPERATIONS | frozenset(SAVED_TIME_OPERATIONS)
 
 
 def validate_kiosk_request(value):
@@ -1559,6 +1584,8 @@ CHILD_DESKTOP_OPERATIONS |= {op for op, (surface, _) in RESTART_OPERATIONS.items
 KIOSK_SESSION_OPERATIONS |= MATE_OPERATIONS | MATE_APPROVAL_OPERATIONS
 KIOSK_SESSION_OPERATIONS |= {'kiosk-request-select', 'kiosk-request-estimate',
                              'kiosk-request-child', 'kiosk-request-read'}
+KIOSK_SESSION_OPERATIONS |= frozenset(
+    operation for operation, (surface, *_rest) in SAVED_TIME_OPERATIONS.items() if surface == 'kiosk')
 CHINESE_LANGUAGE_OPERATIONS = frozenset({'chinese-language-save', 'chinese-persisted-form'})
 OPERATIONS |= CHINESE_LANGUAGE_OPERATIONS | CHINESE_VALID_BINDINGS.keys()
 KIOSK_SESSION_OPERATIONS |= CHINESE_LANGUAGE_OPERATIONS | CHINESE_VALID_BINDINGS.keys()
@@ -1935,6 +1962,7 @@ def owned_surface_id(identity):
         ('about-', 'about-dialog'),
         ('feedback-', 'feedback-dialog'),
         ('parent-', 'parent-window'),
+        ('kiosk-lock-', 'kiosk-lock-confirmation'),
         ('kiosk-', 'kiosk-request-window'),
         ('child-countdown-', 'child-countdown-menu'),
         ('child-', 'child-screen-time-indicator'),
@@ -2852,7 +2880,8 @@ class AccessibleUI:
                     ('parent-window',) if identity in ('parent-revoke-dialog', 'parent-match-rule-dialog') else
                     ('language-dialog',) if identity in ('reminder-editor-dialog', 'preset-editor-dialog') else
                     ('parent-window', 'kiosk-request-window') if identity == 'language-dialog' else
-                    ('kiosk-request-window',) if identity == 'preview-screen-dialog' else
+                    ('kiosk-request-window',) if identity in ('preview-screen-dialog',
+                                                              'kiosk-lock-confirmation') else
                     tuple(value for value in primary if value != 'parent-access-denied-window'))
         if nodes is None or snapshot is None:
             snapshot = {}
@@ -12423,7 +12452,7 @@ class AccessibleUI:
 
     def mate_prompt(self, pid, *, observation=None, challenge=None, filled=False,
                     pending_filled=False,
-                    binding=None, language='en', request=None):
+                    binding=None, language='en', request=None, deferred=False):
         """MATE-only semantic adapter; never reads password contents or types.
 
         Native PAM recipient label and displayed policy message are public
@@ -12445,6 +12474,10 @@ class AccessibleUI:
                 and type(request.get('allow_soft')) is bool), 'ui:mate-request-binding')
         require(language != 'de' or (request is not None and request == bound_request
                 and request['duration_seconds'] in (240, 480, 600)), 'ui:mate-request-language')
+        # Deferred mode is only qualified for the caller's bound English request.
+        require(type(deferred) is bool and (not deferred or (
+                request is not None and request == bound_request and language == 'en')),
+                'ui:mate-mode-binding')
         child, approver = MULTIPLE_MATE_BINDINGS[binding] if binding else (CHILD, PARENT)
         if request is not None and request == bound_request:
             child, approver = self.kiosk_bound_values()[:2]
@@ -12512,7 +12545,10 @@ class AccessibleUI:
         if texts:
             message = texts['message']
         else:
-            mode = 'Die genehmigte Zeit jetzt starten.' if language == 'de' else 'Start the approved time now.'
+            mode = ('Die genehmigte Zeit jetzt starten.' if language == 'de' else
+                    'Save the approved time for later. This pauses any running fixed-duration '
+                    'grant. The app choice applies when the saved time is used.' if deferred else
+                    'Start the approved time now.')
             message += '\n\n' + mode
         require(labels.count(message) == 1, 'ui:mate-request-context-missing')
         if texts:
@@ -12565,7 +12601,7 @@ class AccessibleUI:
                    Path('/proc/' + str(pid) + '/stat').read_text().rsplit(')', 1)[1].split()[19]]
         return hashlib.sha256(json.dumps(payload).encode()).hexdigest()
 
-    def wait_mate_prompt(self, *, binding=None, language='en', request=None):
+    def wait_mate_prompt(self, *, binding=None, language='en', request=None, deferred=False):
         """Bind a new challenge after Request's locale-driven agent restart.
 
         While no prompt is visible the service may have no MainPID. Once it
@@ -12590,7 +12626,8 @@ class AccessibleUI:
             try:
                 challenge = self.mate_prompt(pid, observation=observation, binding=binding,
                                              **({'request': request} if request is not None else {}),
-                                             **({'language': language} if language != 'en' else {}))
+                                             **({'language': language} if language != 'en' else {}),
+                                             **({'deferred': True} if deferred else {}))
             except UiError as error:
                 if str(error) != 'ui:mate-field-state':
                     raise
@@ -12689,6 +12726,252 @@ class AccessibleUI:
             self._invoke_target(action)
         return {'approved': True, 'form_success': True, **({'immediate_exit': True} if immediate else {})}
 
+    def saved_time_child(self, overlay):
+        child = (self.overlay_bound_values() if overlay else self.kiosk_bound_values())[0]
+        if overlay:
+            self.require_child_overlay_session(child)
+        return child
+
+    def saved_time_targets(self, identities, *, overlay, child=None, observation=None):
+        """Resolve shared-form controls in one owned snapshot of the bound child."""
+        bound = self.saved_time_child(overlay)
+        child = bound if child is None else child
+        if observation is None:
+            observation = self.read_snapshot()
+        window = self.request_surface(observation, overlay=overlay, child=bound)
+        targets = {}
+        for identity in ('kiosk-child-selector', *identities):
+            node = self.snapshot_owned_target(identity, root=window, showing=False,
+                                              observation=observation)
+            require(node is not None, 'ui:saved-time-control')
+            targets[identity] = node
+        require(targets['kiosk-child-selector'].getValue()
+                == str(pwd.getpwnam(CHILD_ACCOUNTS[child]).pw_uid), 'ui:saved-time-child')
+        return targets
+
+    def available(self, node):
+        return (self.has_state(node, self.api.StateType.VISIBLE)
+                and self.has_state(node, self.api.StateType.SENSITIVE))
+
+    def saved_time_state(self, *, overlay, child=None):
+        """Approved time page: canonical balances and actionable controls, no input."""
+        balances = {name: 'kiosk-approved-' + name for name in ('running', 'saved', 'daily')}
+        targets = self.saved_time_targets(('kiosk-request-tabs', 'kiosk-approved-status',
+            *balances.values(), *SAVED_TIME_ACTIONS.values()), overlay=overlay, child=child)
+        state = targets['kiosk-approved-status'].getValue()
+        require(state in ('ready', 'empty', 'loading', 'unavailable', 'busy', 'recovery',
+                          'pending', 'disabled'), 'ui:saved-time-state')
+        if state in ('loading', 'pending'):
+            return None
+        value = {'surface': 'child-overlay' if overlay else 'kiosk',
+                 'child': CHILD_IDENTITIES[child or self.saved_time_child(overlay)],
+                 'tab': targets['kiosk-request-tabs'].getValue(), 'state': state,
+                 **{name + '_seconds': targets[identity].getValue()
+                    for name, identity in balances.items()},
+                 'actions': {name: self.available(targets[identity])
+                             for name, identity in SAVED_TIME_ACTIONS.items()},
+                 'observed_monotonic_ns': time.monotonic_ns()}
+        require(value['tab'] == 'approved' and all(
+            value[name + '_seconds'] is None or type(value[name + '_seconds']) is int
+            and 0 <= value[name + '_seconds'] <= 86400 for name in balances),
+            'ui:saved-time-balances')
+        return value
+
+    def select_request_tab(self, name, *, overlay, child=None):
+        """Select either shared-form tab through its normal tab handler."""
+        require(name in ('request', 'approved'), 'ui:saved-time-tab')
+        if not overlay:
+            # Selecting another child can open a language dialog that blocks form input.
+            self.complete_request_language_setup()
+        identity = 'kiosk-tab-' + name
+
+        def enabled_tab():
+            target = self.saved_time_targets((identity,), overlay=overlay, child=child)[identity]
+            return target if self.available(target) else None
+
+        self._invoke_target(self.wait(enabled_tab, 'saved-time-tab-available'))
+        self.wait(lambda: self.saved_time_targets(('kiosk-request-tabs',), overlay=overlay, child=child)[
+            'kiosk-request-tabs'].getValue() == name, 'saved-time-tab')
+        return {'surface': 'child-overlay' if overlay else 'kiosk', 'tab': name}
+
+    def submit_saved_request(self):
+        """Open the split menu and activate Request & save for later once."""
+        child, approver = self.kiosk_bound_values()[:2]
+        menu = self.kiosk_valid_target('kiosk-request-menu', child=child, approver=approver)
+        self.input_uncertain = True
+        menu.setValue(True)
+        self.input_uncertain = False
+
+        def action():
+            targets = self.saved_time_targets(('kiosk-request-menu', 'kiosk-request-save-for-later',
+                                               'kiosk-request-save-hint'), overlay=False)
+            require(targets['kiosk-request-menu'].getValue() is True, 'ui:saved-menu-closed')
+            save = targets['kiosk-request-save-for-later']
+            # The deferred estimate arrives with the selected duration's status.
+            return save if self.available(save) and self.showing(
+                targets['kiosk-request-save-hint']) else None
+        self._invoke_target(self.wait(action, 'saved-request-action'))
+
+    def kiosk_saved_success(self):
+        """Deferred approval stays in the form and selects the saved balance."""
+        def saved():
+            if self.system_prompt_kind() is not None or self.saved_time_targets(
+                    ('kiosk-request-tabs',), overlay=False)['kiosk-request-tabs'].getValue() != 'approved':
+                return None
+            value = self.saved_time_state(overlay=False)
+            return value if value is not None and value['state'] == 'ready' else None
+        value = self.wait(saved, 'kiosk-saved-success', prompt_in_predicate=True)
+        require(value['saved_seconds'] is not None and value['saved_seconds'] > 0
+                and value['actions']['use_saved'], 'ui:kiosk-saved-result')
+        return {'approved': True, 'saved': True}
+
+    def kiosk_saved_disabled(self):
+        """Approved time for the other child with screen-time control off."""
+        child = self.kiosk_bound_values()[0]
+        other = EXISTING_CHILD if child == CHILD else CHILD
+        self.complete_request_language_setup()
+        uid = str(pwd.getpwnam(CHILD_ACCOUNTS[other]).pw_uid)
+        self.set_value('kiosk-child-selector', uid)
+        self.wait(lambda: self.kiosk_account_snapshot('child')[0].getValue() == uid, 'saved-time-child')
+        self.complete_request_language_setup()
+        def disabled_request():
+            targets = self.saved_time_targets(('kiosk-screen-limit-notice', 'kiosk-request-menu'),
+                                              overlay=False, child=other)
+            notice = targets['kiosk-screen-limit-notice']
+            if not self.showing(notice):
+                return None
+            require(not self.available(targets['kiosk-request-menu']), 'ui:saved-time-disabled-menu')
+            return notice.get_name()
+
+        notice = self.wait(disabled_request, 'saved-time-disabled-notice')
+        self.select_request_tab('approved', overlay=False, child=other)
+
+        def disabled():
+            value = self.saved_time_state(overlay=False, child=other)
+            return value if value is not None and value['state'] == 'disabled' else None
+        value = self.wait(disabled, 'saved-time-disabled')
+        targets = self.saved_time_targets(('kiosk-approved-status',), overlay=False, child=other)
+        require(targets['kiosk-approved-status'].get_name() == notice
+                and not any(value['actions'].values())
+                and all(value[name + '_seconds'] is None for name in ('running', 'saved', 'daily')),
+                'ui:saved-time-disabled')
+        return {'child': CHILD_IDENTITIES[other], 'state': 'disabled',
+                'explanation': 'screen-limit-notice', 'actions': value['actions']}
+
+    def kiosk_saved_rest_of_day(self):
+        """Rest of the day leaves the menu open with an unavailable save action."""
+        self.set_value('kiosk-duration-choices', '0')
+        menu = self.saved_time_targets(('kiosk-request-menu',), overlay=False)['kiosk-request-menu']
+        require(self.available(menu), 'ui:saved-menu-unavailable')
+        self.input_uncertain = True
+        menu.setValue(True)
+        self.input_uncertain = False
+
+        def restricted():
+            targets = self.saved_time_targets(('kiosk-request-menu', 'kiosk-request-save-for-later',
+                                               'kiosk-request-save-hint', 'kiosk-duration-choices'),
+                                              overlay=False)
+            hint = targets['kiosk-request-save-hint']
+            if not (targets['kiosk-request-menu'].getValue() is True and self.showing(hint)):
+                return None
+            require(targets['kiosk-duration-choices'].getValue() == '0'
+                    and self.has_state(targets['kiosk-request-save-for-later'], self.api.StateType.VISIBLE)
+                    and not self.has_state(targets['kiosk-request-save-for-later'], self.api.StateType.SENSITIVE)
+                    and hint.get_name() == "Rest of the day can't be saved.", 'ui:saved-rest-of-day')
+            return True
+        self.wait(restricted, 'saved-rest-of-day')
+        self.input_uncertain = True
+        self.saved_time_targets(('kiosk-request-menu',), overlay=False)['kiosk-request-menu'].setValue(False)
+        self.input_uncertain = False
+        self.wait(lambda: self.saved_time_targets(('kiosk-request-menu', 'kiosk-request-submit'),
+                                                  overlay=False)['kiosk-request-menu'].getValue() is False,
+                  'saved-menu-dismissed')
+        return {'duration': 'rest-of-day', 'save_available': False,
+                'explanation': 'rest-of-day', 'menu_dismissed': True, 'form_open': True}
+
+    def kiosk_saved_use(self):
+        """Use saved time once; the kiosk confirms the running timer, then exits."""
+        before = self.wait(lambda: self.saved_time_state(overlay=False), 'saved-time-read')
+        require(before['state'] == 'ready' and before['saved_seconds']
+                and before['actions']['use_saved'], 'ui:saved-time-use-unavailable')
+        self._invoke_target(self.saved_time_targets(('kiosk-approved-use-saved',), overlay=False)[
+            'kiosk-approved-use-saved'])
+
+        def confirmed():
+            window = self.snapshot_owned_target('kiosk-request-window', check_prompt=True)
+            if window is None:
+                return None
+            title = self.find_id('kiosk-result-title', root=window)
+            return title is not None and self.showing(title) and title.get_name() == 'Timer running'
+        self.wait(confirmed, 'kiosk-saved-used', prompt_in_predicate=True)
+        return {'used': True, 'saved_seconds': before['saved_seconds'], 'result': 'timer-running'}
+
+    def overlay_lock_dialog(self, *, child):
+        """The modal lock confirmation, bound to the child's request window."""
+        observation = self.read_snapshot()
+        nodes, _edges, identities, _facts = observation
+        self.request_surface(observation, overlay=True, child=child)
+        application = self.snapshot_matches(CHILD_APPLICATION, nodes, showing=False,
+                                            identities=identities)
+        dialog = self.snapshot_owned_target('kiosk-lock-confirmation', root=application,
+                                            observation=observation)
+        if dialog is None or not self.showing(dialog):
+            return None
+        targets = {identity: self.snapshot_owned_target(identity, root=dialog, observation=observation)
+                   for identity in ('kiosk-lock-title', 'kiosk-lock-body',
+                                    'kiosk-lock-cancel', 'kiosk-lock-confirm')}
+        require(self.has_state(dialog, self.api.StateType.MODAL)
+                and all(node is not None for node in targets.values())
+                and targets['kiosk-lock-title'].get_name() == 'Pause and lock the screen?'
+                and re.fullmatch(r'About .+ will be saved\. Your screen will lock now and you’ll '
+                                 r'need your password to return\. Start saved time from Approved '
+                                 r'time here while daily time remains, or at the request station\.',
+                                 targets['kiosk-lock-body'].get_name()) is not None
+                and self.available(targets['kiosk-lock-cancel'])
+                and self.available(targets['kiosk-lock-confirm']), 'ui:saved-lock-dialog')
+        return targets
+
+    def overlay_saved_operation(self, action):
+        child = self.saved_time_child(True)
+        if action == 'pause':
+            before = self.wait(lambda: self.saved_time_state(overlay=True), 'saved-time-read')
+            require(before['state'] == 'ready' and before['actions']['pause'],
+                    'ui:saved-time-pause-unavailable')
+            self._invoke_target(self.saved_time_targets(('kiosk-approved-pause',), overlay=True)[
+                'kiosk-approved-pause'])
+            self.wait(lambda: self.overlay_lock_dialog(child=child), 'saved-lock-dialog')
+            return {'confirmation': 'pause-and-lock', 'running_seconds': before['running_seconds']}
+        targets = self.overlay_lock_dialog(child=child)
+        require(targets is not None, 'ui:saved-lock-dialog')
+        self._invoke_target(targets['kiosk-lock-' + action.removeprefix('lock-')])
+        if action == 'lock-confirm':
+            self.overlay_closed(child=child)
+            return {'confirmed': True, 'overlay_closed': True}
+
+        def returned():
+            if self.overlay_lock_dialog(child=child) is not None:
+                return None
+            value = self.saved_time_state(overlay=True)
+            return value if value is not None and value['state'] == 'ready' else None
+        return {'cancelled': True, 'time': self.wait(returned, 'saved-lock-cancelled')}
+
+    def saved_time_operation(self, operation):
+        surface, action, tab = SAVED_TIME_OPERATIONS[operation]
+        overlay = surface == 'overlay'
+        try:
+            if action == 'tab':
+                return self.select_request_tab(tab, overlay=overlay)
+            if action == 'read':
+                return self.wait(lambda: self.saved_time_state(overlay=overlay), 'saved-time-read')
+            if overlay:
+                return self.overlay_saved_operation(action)
+            return {'use': self.kiosk_saved_use, 'disabled': self.kiosk_saved_disabled,
+                    'rest-of-day': self.kiosk_saved_rest_of_day}[action]()
+        except BaseException:
+            # A missing result after accepted input cannot authorize replay.
+            self.input_uncertain = True
+            raise
+
     def kiosk_mate_approval(self, operation):
         require(not self.input_uncertain, 'ui:uncertain-input')
         chinese = operation in CHINESE_MATE_ORDER
@@ -12696,7 +12979,8 @@ class AccessibleUI:
         profile_request = PROFILE_MATE_REQUESTS.get(operation)
         jordan = operation in JORDAN_MATE_ORDER or operation == JORDAN_MATE_REFUSAL
         paused = operation in PAUSE_MATE_ORDER
-        bound = operation in BOUND_MATE_ORDER
+        saved = operation in SAVED_MATE_ORDER
+        bound = operation in BOUND_MATE_ORDER or saved
         bound_request = kiosk_request_facts(self.kiosk_request) if bound else None
         language = ('zh-Hans' if chinese else
                     self.bound_request_language(approval=True) if bound else 'en')
@@ -12705,7 +12989,8 @@ class AccessibleUI:
                   operation.replace('chinese-mate-', 'kiosk-mate-', 1) if chinese else
                   operation.replace('kiosk-long-mate-', 'kiosk-mate-', 1) if long_request else
                   operation.replace('kiosk-pause-mate-', 'kiosk-mate-', 1) if paused else operation)
-        options = ({'request': bound_request, 'language': language} if bound else
+        options = ({'request': bound_request, 'language': language,
+                    **({'deferred': True} if saved else {})} if bound else
                    {'request': dict(profile_request)} if profile_request else
                    {'request': dict(JORDAN_MATE_REQUEST)} if jordan else
                    {'language': language} if chinese else
@@ -12722,9 +13007,12 @@ class AccessibleUI:
                     f'kiosk-request-{profile_request["duration_seconds"]}-soft-read' if profile_request else
                     'kiosk-long-request-soft-read' if long_request else 'kiosk-valid-fraction-soft-read')
                 require(self.mate_prompt(pid, **options) is None, 'ui:mate-already-open')
-                self._invoke_target(self.kiosk_valid_target('kiosk-request-submit',
-                    **({'child': self.kiosk_bound_values()[0], 'approver': self.kiosk_bound_values()[1]} if bound else
-                       {'child': EXISTING_CHILD} if chinese or jordan else {})))
+                if saved:
+                    self.submit_saved_request()
+                else:
+                    self._invoke_target(self.kiosk_valid_target('kiosk-request-submit',
+                        **({'child': self.kiosk_bound_values()[0], 'approver': self.kiosk_bound_values()[1]} if bound else
+                           {'child': EXISTING_CHILD} if chinese or jordan else {})))
                 pid, challenge = self.wait_mate_prompt(**options)
             else:
                 challenge = (self.wait_filled_mate_prompt(pid, **options) if submitting else
@@ -12760,8 +13048,9 @@ class AccessibleUI:
                     self.kiosk_diagnostic_exit(expected_source=result['source'])
                     self.input_uncertain = True
                     return {'refused': True, 'error_shown': True, 'exit_initiated': True}
-                result = self.kiosk_approval_success(immediate=operation == 'kiosk-mate-submit-immediate',
-                    **({'language': language} if chinese or bound else {}))
+                result = (self.kiosk_saved_success() if saved else
+                          self.kiosk_approval_success(immediate=operation == 'kiosk-mate-submit-immediate',
+                              **({'language': language} if chinese or bound else {})))
                 self.input_uncertain = True  # This one submission is consumed even on success.
                 return result
             if chinese:
@@ -16176,6 +16465,8 @@ class AccessibleUI:
         elif operation == 'child-command-launch':
             self.require_child_overlay_session(bound_child)
             self.launch_child_command(child=bound_child)
+        elif operation in SAVED_TIME_OPERATIONS:
+            result['saved_time'] = self.saved_time_operation(operation)
         elif operation == 'overlay-request-select':
             self.select_overlay_request()
         elif operation == 'kiosk-request-select':

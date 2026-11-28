@@ -1526,6 +1526,42 @@ are unnecessary.
 | REQUEST12 | C | Exit through the normal API Cancel action, surface close, approved immediate exit action, or already-approved automatic exit. Observe overlay disappearance plus child desktop, or kiosk disappearance plus GDM. Form cancellation refuses an active authentication prompt. Legacy Escape bindings retain their normal-close user outcome. | UI04(Cancel or approved immediate exit), UI18, or no input for automatic exit → UI11 → DESK01 or GDM01. `AccessibleUI.cancel_kiosk_request` invokes the owned API action; `onpc_request_exit::escape` composes the scoped request-surface close with `kiosk_gdm_returned` or `overlay_desktop` for independent destination observation. Retained `focus_kiosk_escape_recipient` names supply guarded API close, with no native key or focus requirement. Cases 49 and 54 retain their request and GDM assertions; see [prepared request qualification](#prepared-request-qualification). `kiosk_approval.PLAN` and `auth_result.PLAN` retain automatic/immediate approved exit; see [kiosk approval](#kiosk-approval-qualification). Overlay Cancel/close shares the request API and compares the original usable activity; see [valid overlay slice](#valid-overlay-choice-and-cancel-qualification), [overlay close history](#overlay-flow04-invalid-submission-and-escape-qualification) [automatic overlay approval](#overlay-approval-and-automatic-return-qualification) and [immediate/automatic overlay compositions](#overlay-immediate-exit-and-approval-compositions). Historical native-Escape evidence does not require keyboard input in current consumers. | pending; kiosk Cancel/Escape and fixed automatic/immediate approved exits and declared overlay Cancel/Escape and fixed automatic/immediate approved exits ready |
 | REQUEST13 | C | Open the child overlay through the Shell panel only when the case explicitly tests that graphical launch route. Observe one usable form and fixed child identity. | DESK12(request entry) → UI04 → UI01 → UI02 → UI13(form count=1) → UI03(fixed child). Declare the exception in case metadata and recipe. Shared `overlay_entry` routes `panel` and `panel-reopen` qualify normal launch and reuse of the open form; see [overlay entry qualification](#overlay-entry-qualification). [Fullscreen gameplay request/return](#fullscreen-gameplay-request-and-return) uses the same product API entry without panel reveal or focus choreography and independently compares the original game activity. | normal launch, singleton and Jordan fullscreen gameplay/request/return ready on Ubuntu 26.04 |
 
+#### Saved-time controls
+
+Use `AccessibleUI.select_request_tab` to activate the owned Request more time
+or Approved time tab. Read `AccessibleUI.saved_time_state` separately for
+running approved seconds beyond daily time, saved seconds, daily seconds and
+enabled actions. Both operations use the shared form's public IDs and bind
+the selected child. The overlay also verifies the signed-in child session.
+
+The fixed `check_e2e_saved_time_controls` selector runs two independent
+installed slices through [`SavedTimeControlsJourney`](../../tests/e2e/saved_time_controls.py).
+The request station uses the Application UI API, the trusted English MATE
+Polkit prompt and the GDM sign-in return. `AccessibleUI.kiosk_mate_approval`
+opens the split menu for the selected child, binds the deferred mode and
+rechecks the same prompt before submission. The slice checks the disabled-child
+explanation, the Rest of the day restriction, a ten-minute deferred approval
+and the separate balances. `AccessibleUI.kiosk_saved_use` observes Timer running,
+then the worker observes GDM. A second station read confirms redemption is no
+longer available.
+
+The child overlay uses the Application UI API and the GNOME Shell lock surface.
+With daily time and a ten-minute fixed grant, `AccessibleUI.overlay_saved_operation`
+cancels the lock confirmation and rereads the running timer, then confirms
+Pause and lock. The separate native observer verifies the child's lock curtain.
+
+Both slices passed with owned cleanup on the following targets. The GDM and
+GNOME Shell bindings used `en_US.UTF-8` and `xkb/us`.
+
+| Target | GDM | GNOME Shell lock |
+| --- | --- | --- |
+| `onpc-Ubuntu26.04-101` | `50.1-0ubuntu0.1` | `50.1-0ubuntu1.5` |
+| `onpc-Fedora44-201` | `1:50.3-1.fc44` | `0:50.6-1.fc44` |
+| `onpc-Fedora45-301` | `1:51.1.1-1.fc45` | `0:51.1-1.fc45` |
+
+Complete customer journeys use their own inputs and results, including overlay
+deferred approval, overlay redemption and kiosk pause.
+
 #### Overlay Shell prompt and Cancel qualification
 
 `overlay_prompt.PLAN` / `OverlayPromptJourney`,

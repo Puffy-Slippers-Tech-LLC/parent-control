@@ -266,9 +266,12 @@ sub enter_kiosk_mate_password {
                 && ($journey->{stage_prefix} // '') eq $1 . '-'
                 && ref($request) eq 'ARRAY' && join(',', @$request) eq
                     ($1 eq 'request' ? 'other-child,parent,600,1' : 'other-child,parent,1200,1');
+            my $saved_time = ($journey->{prefix} // '') =~ /\Asaved-time-(?:kiosk|overlay)\z/
+                && ($journey->{stage_prefix} // '') eq ''
+                && ref($request) eq 'ARRAY' && join(',', @$request) eq 'child,parent,600,0';
             $game ||= game_permission_request($journey, 'kiosk');
             my $homework = homework_request($journey, 'kiosk');
-            die 'secret:challenge' unless (family_request($journey, 'kiosk') || $homework || $temporary_access || $delayed || $grant_access || $app_restart || $idle || $app_transition || $process_update || $work_recovery || $expired_restart || $expired_daily || $daily_soft || $offline || $station_close || $calendar || $game || $reminders || $saved_work ||
+            die 'secret:challenge' unless (family_request($journey, 'kiosk') || $homework || $temporary_access || $delayed || $grant_access || $app_restart || $idle || $app_transition || $process_update || $work_recovery || $expired_restart || $expired_daily || $daily_soft || $offline || $station_close || $calendar || $game || $reminders || $saved_work || $saved_time ||
                     ($journey->{prefix} // '') =~ /\Akiosk-(?:fresh|retained)-return\z/
                     && ($journey->{stage_prefix} // '') eq '')
                 && ref($request) eq 'ARRAY' && @$request == 4

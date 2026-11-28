@@ -154,7 +154,10 @@ breaks Claude's socket filter, so sandboxed commands can reach sockets such as
 libvirt or D-Bus. Its host grants are derived from `config/codex-tests.rules`:
 `allow` rules run outside the sandbox, `prompt` and `forbidden` rules are
 denied, and the most restrictive rule wins, as in unattended Codex. The
-machine-wide `curl -fsSL` public-read grant is added. Read-only
+machine-wide `curl -fsSL` public-read grant is added. The default shell
+command timeout is unchanged, but a session may pass an explicit timeout of up
+to four hours to one command (`BASH_MAX_TIMEOUT_MS`), so a waiting test run,
+such as installed E2E on several VMs, reaches its verdict. Read-only
 sessions have only the read and search tools. `./setup.sh` reports Claude login
 and sandbox readiness; it does not log in or install the CLI.
 

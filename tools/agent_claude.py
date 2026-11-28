@@ -24,6 +24,9 @@ SANDBOX_TOOLS = ('bwrap', 'socat')
 READ_TOOLS = ('Read', 'Glob', 'Grep')
 WRITE_TOOLS = ('Edit', 'Write', 'Bash', 'TodoWrite')
 NO_MCP = '{"mcpServers":{}}'
+# Upper bound a session may request for one waiting command, such as an installed
+# E2E run on several VMs; the default command timeout stays unchanged.
+MAX_COMMAND_TIMEOUT_MS = 4 * 60 * 60 * 1000
 # Inherited identities and overrides would attach to, or reconfigure, another session.
 INHERITED = ('CLAUDECODE', 'CLAUDE_CODE_ENTRYPOINT', 'CLAUDE_CODE_SESSION_ID',
              'CLAUDE_CODE_PARENT_SESSION_ID', 'CLAUDE_CODE_SSE_PORT', 'CLAUDE_CODE_EFFORT_LEVEL',
@@ -287,6 +290,7 @@ class ClaudeAdapter:
             # Only the configured roles, no forks, and helpers always joined.
             CLAUDE_AGENT_SDK_DISABLE_BUILTIN_AGENTS='1', CLAUDE_CODE_FORK_SUBAGENT='0',
             CLAUDE_CODE_DISABLE_BACKGROUND_TASKS='1',
+            BASH_MAX_TIMEOUT_MS=str(MAX_COMMAND_TIMEOUT_MS),
             CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS=str(request.delegation.max_concurrent),
             CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=str(request.delegation.max_depth))
         protocol = (ClaudeGoalProtocol(request.model, request.effort) if goal else

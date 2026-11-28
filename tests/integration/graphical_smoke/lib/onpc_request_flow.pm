@@ -705,6 +705,49 @@ sub kiosk_fresh_return {
     $journey->finish();
 }
 
+# Two fixed saved-time slices; the controller owns every public result.
+sub saved_time {
+    onpc_progress::operation('Qualifying the shared saved-time controls');
+    my ($exchange, $declared, $challenges, $binding, $surface) = @_;
+    die 'saved-time:binding' unless @_ == 5 && ref($exchange) eq 'CODE'
+        && ($surface eq 'kiosk' || $surface eq 'overlay')
+        && ref($binding) eq 'ARRAY' && join(',', @$binding) eq 'child,parent,600,0';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => "saved-time-$surface", review => 0);
+    $journey->{kiosk_request} = $binding;
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    my $desktop = onpc_gdm::sign_in_challenge($journey, 'parent-login',
+        'installed-greeter', 'parent-focused', 'desktop');
+    onpc_parent::launch($journey, $desktop, 'management');
+    my $selected = onpc_parent::select_child($journey, 'child',
+        $journey->seen('child-picker-opened'), 'child-picker-opened', 'child-choice-highlighted', 'parent-selected');
+    $journey->consume_observation('parent-selected', $selected);
+    $journey->seen('allowance-configured');
+    onpc_desktop_session::switch_user($journey, $journey->seen('repeat-desktop'), 'repeat-desktop');
+    if ($surface eq 'overlay') {
+        prepare($journey, 'new', 'new', 'observed', 'fixture-child', 'fixture-parent', 600, 0, 'kiosk');
+        approve($journey, 'fixture-child', 'fixture-parent', 600, 0, 'automatic');
+        onpc_desktop_session::enter_desktop($journey, 'gdm', 'child', 'fresh', 'success', 'fresh');
+        $journey->seen('countdown');
+        overlay_entry($journey, 'direct', 'command');
+        $journey->seen($_) for qw(approved-tab running-read pause-open pause-cancelled
+                                  pause-reopen pause-confirmed locked);
+        $journey->finish();
+        return;
+    }
+    onpc_gdm::enter_station($journey, '');
+    $journey->seen($_) for qw(disabled-read child-selected request-tab rest-of-day);
+    prepare($journey, 'new', 'open', 'observed', 'fixture-child', 'fixture-parent', 600, 0, 'kiosk');
+    $journey->consume_observation('approval-open', $journey->seen('approval-open'));
+    onpc_password::enter_kiosk_mate_password($journey, 'bound-request');
+    $journey->consume_observation('approval-success', $journey->seen('approval-success'));
+    $journey->seen($_) for qw(saved-read use-saved use-returned);
+    onpc_gdm::enter_station($journey->scope('after'), '');
+    $journey->seen($_) for qw(after-child after-tab after-read after-cancel after-returned);
+    $journey->finish();
+}
+
 sub kiosk_delayed_approval {
     onpc_progress::operation('Approving two station requests while preserving [Child user] work');
     my ($exchange, $declared, $challenges, $binding, $balance) = @_;

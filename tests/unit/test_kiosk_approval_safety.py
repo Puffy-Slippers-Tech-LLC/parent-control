@@ -150,7 +150,8 @@ def test_german_native_prompt_still_binds_parent_and_request(fault):
                  (field, 'password text', ''),
                  (recipient, 'label', 'Passwort für onpc-parent-jamie:'),
                  (message, 'label', 'Zugriff für Riley (Child) gewähren\nfür 4 Minuten\n\n'
-                                   '✓ Vorübergehend freigebbare Apps erlaubt'),
+                                   '✓ Vorübergehend freigebbare Apps erlaubt\n\n'
+                                   'Die genehmigte Zeit jetzt starten.'),
                  (cancel, 'push button', 'Abbrechen'))}
     if fault == 'recipient':
         facts[recipient]['name'] = 'Passwort für onpc-parent-casey:'

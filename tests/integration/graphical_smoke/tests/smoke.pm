@@ -557,6 +557,15 @@ sub run {
             $ready->{delayed_grant_approval} ? 'grant-only' : 'daily-only');
         return;
     }
+    for my $surface ('kiosk', 'overlay') {
+        if ($ready->{'saved_time_' . $surface}) {
+            console('sut')->disable();
+            exchange('setup-detached', undef);
+            onpc_request_flow::saved_time(\&exchange, $ready->{invocations},
+                $ready->{challenge_bindings}, $ready->{kiosk_request}, $surface);
+            return;
+        }
+    }
     for my $entry ('new', 'open') {
         if ($ready->{'kiosk_retained_return_' . $entry}) {
             console('sut')->disable();

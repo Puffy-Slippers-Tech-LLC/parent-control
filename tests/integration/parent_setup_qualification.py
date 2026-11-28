@@ -1269,6 +1269,20 @@ class KioskFreshReturnOpenQualification(KioskFreshReturnNewQualification):
         return KioskFreshReturnJourney(context, progress, OPEN_PLAN)
 
 
+class SavedTimeKioskQualification(ChallengesQualification):
+    @staticmethod
+    def journey(context, progress):
+        from saved_time_controls import KIOSK_PLAN, SavedTimeControlsJourney
+        return SavedTimeControlsJourney(context, progress, KIOSK_PLAN)
+
+
+class SavedTimeOverlayQualification(ChallengesQualification):
+    @staticmethod
+    def journey(context, progress):
+        from saved_time_controls import OVERLAY_PLAN, SavedTimeControlsJourney
+        return SavedTimeControlsJourney(context, progress, OVERLAY_PLAN)
+
+
 class KioskRetainedReturnNewQualification(ChallengesQualification):
     from e2e_fixture_preparation import ACTIVITY_SUBSETS as fixture_subsets
     fixture_caller = 'check_e2e_kiosk_approval_return'

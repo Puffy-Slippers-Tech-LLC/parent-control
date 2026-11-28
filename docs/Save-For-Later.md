@@ -1,7 +1,7 @@
 # Save approved time for later execution plan
 
 Task queue: [Ordered task queue](Save-For-Later-Task-Queue.md).
-Next task: **017 — [Qualify the shared test actions for saved time](Save-For-Later-Tasks/017.md)**.
+Next task: **018 — [Save a running grant at the kiosk and unlock the retained desktop](Save-For-Later-Tasks/018.md)**.
 
 Implement deferred parent approval, manual pause, and use of saved time in the
 kiosk and child overlay. The [feature design](Save-For-Later-Design.md) retains

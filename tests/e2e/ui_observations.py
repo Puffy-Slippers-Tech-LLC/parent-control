@@ -137,6 +137,19 @@ OPERATION_LABELS = {
        for operation in accessible_ui.SPARE_OPERATIONS},
     **{operation: 'Checking approval for the chosen child and parent'
        for operation in accessible_ui.BOUND_MATE_ORDER},
+    **{operation: 'Checking approval to save time for the chosen child'
+       for operation in accessible_ui.SAVED_MATE_ORDER},
+    'kiosk-saved-tab-request': 'Opening the station’s Request more time tab',
+    'kiosk-saved-tab-approved': 'Opening the station’s Approved time tab',
+    'kiosk-saved-read': 'Reading the station’s approved and saved time',
+    'kiosk-saved-use': 'Using the saved time at the station',
+    'kiosk-saved-disabled': 'Reading Approved time for a child without screen limits',
+    'kiosk-saved-rest-of-day': 'Checking that Rest of the day cannot be saved',
+    'overlay-saved-tab-approved': 'Opening the child form’s Approved time tab',
+    'overlay-saved-read': 'Reading the child form’s approved and saved time',
+    'overlay-saved-pause': 'Pausing the timer from the child form',
+    'overlay-saved-lock-cancel': 'Cancelling the pause and lock confirmation',
+    'overlay-saved-lock-confirm': 'Confirming pause and lock from the child form',
     'kiosk-request-select': 'Choosing the child, parent and requested time at the station',
     'kiosk-request-child': 'Choosing the child before reading remembered request choices',
     'kiosk-request-read': 'Reading the station’s remembered time, apps and parent',
@@ -927,6 +940,62 @@ OPERATION_LABELS.update({operation: 'Entering Sam’s own administrator desktop'
 OPERATION_LABELS['time-explanation-enabled-thirty-read'] = 'Saving thirty daily minutes for the selected child'
 
 
+def saved_time_state(value, surface):
+    """Approved time page projection: canonical states, seconds and actions."""
+    seconds = ('running_seconds', 'saved_seconds', 'daily_seconds')
+    require(type(value) is dict and set(value) == {
+                'surface', 'child', 'tab', 'state', *seconds, 'actions', 'observed_monotonic_ns'}
+            and value['surface'] == surface and value['tab'] == 'approved'
+            and value['child'] in accessible_ui.CHILD_IDENTITIES.values()
+            and value['state'] in ('ready', 'empty', 'unavailable', 'busy', 'recovery', 'disabled')
+            and all(value[key] is None or type(value[key]) is int and 0 <= value[key] <= 86400
+                    for key in seconds)
+            and type(value['observed_monotonic_ns']) is int and value['observed_monotonic_ns'] > 0
+            and saved_time_actions(value['actions']), 'ui:saved-time-state')
+    return value
+
+
+def saved_time_actions(value):
+    return (type(value) is dict and set(value) == set(accessible_ui.SAVED_TIME_ACTIONS)
+            and all(type(item) is bool for item in value.values()))
+
+
+def saved_time_result(operation, value):
+    """Fixed sanitized results of the shared saved-time actions."""
+    surface, action, tab = accessible_ui.SAVED_TIME_OPERATIONS[operation]
+    surface = 'child-overlay' if surface == 'overlay' else surface
+    if action == 'tab':
+        require(value == {'surface': surface, 'tab': tab}, 'ui:saved-time-tab')
+    elif action == 'read':
+        saved_time_state(value, surface)
+    elif action == 'use':
+        require(type(value) is dict and set(value) == {'used', 'saved_seconds', 'result'}
+                and value['used'] is True and value['result'] == 'timer-running'
+                and type(value['saved_seconds']) is int and value['saved_seconds'] > 0,
+                'ui:saved-time-use')
+    elif action == 'disabled':
+        require(type(value) is dict and set(value) == {'child', 'state', 'explanation', 'actions'}
+                and value['child'] in accessible_ui.CHILD_IDENTITIES.values()
+                and value['state'] == 'disabled' and value['explanation'] == 'screen-limit-notice'
+                and saved_time_actions(value['actions']), 'ui:saved-time-disabled')
+    elif action == 'rest-of-day':
+        require(value == {'duration': 'rest-of-day', 'save_available': False,
+                          'explanation': 'rest-of-day', 'menu_dismissed': True, 'form_open': True},
+                'ui:saved-time-rest-of-day')
+    elif action == 'pause':
+        require(type(value) is dict and set(value) == {'confirmation', 'running_seconds'}
+                and value['confirmation'] == 'pause-and-lock'
+                and type(value['running_seconds']) is int and value['running_seconds'] > 0,
+                'ui:saved-time-pause')
+    elif action == 'lock-cancel':
+        require(type(value) is dict and set(value) == {'cancelled', 'time'}
+                and value['cancelled'] is True, 'ui:saved-time-lock-cancel')
+        saved_time_state(value['time'], surface)
+    else:
+        require(value == {'confirmed': True, 'overlay_closed': True}, 'ui:saved-time-lock-confirm')
+    return value
+
+
 class UiObservations:
     def __init__(self, transport, *, system_prompt=None, progress=None):
         self.transport = transport
@@ -1588,7 +1657,8 @@ class UiObservations:
                             or operation == 'jordan-mate-open'
                             and previous_operation in ('jordan-fraction-soft-read',
                                                        'jordan-fraction-estimate-refresh')
-                            or operation == accessible_ui.BOUND_MATE_ORDER[0]
+                            or operation in (accessible_ui.BOUND_MATE_ORDER[0],
+                                             accessible_ui.SAVED_MATE_ORDER[0])
                             and previous_operation == 'kiosk-request-estimate')):
                         index = 0
                     if index == 0:
@@ -1599,11 +1669,13 @@ class UiObservations:
                         self.mate_jordan = operation == accessible_ui.JORDAN_MATE_ORDER[0]
                         self.mate_paused = operation == accessible_ui.PAUSE_MATE_ORDER[0]
                         self.mate_profile = accessible_ui.PROFILE_MATE_REQUESTS.get(operation)
-                        self.mate_bound = operation in accessible_ui.BOUND_MATE_ORDER
+                        self.mate_saved = operation == accessible_ui.SAVED_MATE_ORDER[0]
+                        self.mate_bound = operation in accessible_ui.BOUND_MATE_ORDER or self.mate_saved
                     require(self.kiosk_request == self.mate_request_binding, 'ui:mate-request-replaced')
                     if self.mate_bound:
                         accessible_ui.validate_kiosk_request(self.kiosk_request)
-                        order = accessible_ui.BOUND_MATE_ORDER
+                        order = (accessible_ui.SAVED_MATE_ORDER if self.mate_saved
+                                 else accessible_ui.BOUND_MATE_ORDER)
                     if getattr(self, 'mate_chinese', False):
                         order = accessible_ui.CHINESE_MATE_ORDER
                     if getattr(self, 'mate_long_request', False):
@@ -1837,7 +1909,8 @@ class UiObservations:
             binding = [self.boot_guard or '', json.dumps(self.natural_reminder_record)]
         if operation in accessible_ui.MATE_APPROVAL_OPERATIONS and operation not in (
                 'kiosk-mate-open', 'kiosk-mate-rejection-open', 'chinese-mate-open', 'kiosk-long-mate-open',
-                'kiosk-pause-mate-open', 'jordan-mate-open', 'kiosk-bound-mate-open') and not (
+                'kiosk-pause-mate-open', 'jordan-mate-open', 'kiosk-bound-mate-open',
+                'kiosk-saved-mate-open') and not (
                     operation in accessible_ui.PROFILE_MATE_REQUESTS and operation.endswith('-mate-open')):
             binding = [self.boot_guard or '', self.mate_approval_identity]
         if operation in accessible_ui.SHELL_APPROVAL_OPERATIONS and operation not in accessible_ui.SHELL_OPEN_OPERATIONS:
@@ -2749,6 +2822,9 @@ class UiObservations:
             elif operation == accessible_ui.JORDAN_MATE_REFUSAL:
                 require(value == {'refused': True, 'error_shown': True, 'exit_initiated': True}
                         and all(type(item) is bool for item in value.values()), 'ui:mate-result')
+            elif operation == accessible_ui.SAVED_MATE_ORDER[-1]:
+                require(value == {'approved': True, 'saved': True}
+                        and all(type(item) is bool for item in value.values()), 'ui:mate-result')
             elif operation in ('kiosk-mate-submit-success', 'kiosk-mate-submit-immediate',
                                'chinese-mate-submit-success', 'kiosk-long-mate-submit-success',
                                'jordan-mate-submit-success', 'kiosk-bound-mate-submit-success',
@@ -2764,7 +2840,7 @@ class UiObservations:
                 profile_request = accessible_ui.PROFILE_MATE_REQUESTS.get(operation)
                 jordan = operation in accessible_ui.JORDAN_MATE_ORDER
                 paused = operation in accessible_ui.PAUSE_MATE_ORDER
-                bound = operation in accessible_ui.BOUND_MATE_ORDER
+                bound = operation in accessible_ui.BOUND_MATE_ORDER + accessible_ui.SAVED_MATE_ORDER
                 fields = {'challenge_id'} | ({'provider', 'texts', 'child', 'approver', 'agent_id',
                     'duration_seconds', 'allow_soft', 'rejected_proofs'} if chinese else set()) | (
                     {'request'} if bound or long_request or jordan or profile_request else set()) | ({'provider'} if paused else set())
@@ -2797,7 +2873,7 @@ class UiObservations:
                             'ui:mate-native-response')
                 if operation in ('kiosk-mate-open', 'kiosk-mate-rejection-open', 'chinese-mate-open',
                                  'kiosk-long-mate-open', 'kiosk-pause-mate-open', 'jordan-mate-open',
-                                 'kiosk-bound-mate-open') or (
+                                 'kiosk-bound-mate-open', 'kiosk-saved-mate-open') or (
                                      profile_request and operation.endswith('-mate-open')):
                     require(value['challenge_id'] not in self.challenges, 'ui:challenge-replay')
                     self.challenges.add(value['challenge_id'])
@@ -3436,6 +3512,10 @@ class UiObservations:
                 'child': accessible_ui.CHILD_IDENTITIES[ready_child], 'ready': True},
                 'ui:request-readiness-response')
             expected['request_readiness'] = result['request_readiness']
+        if operation in accessible_ui.SAVED_TIME_OPERATIONS:
+            require(type(result) is dict and set(result) == {*expected, 'saved_time'},
+                    'ui:saved-time-response')
+            expected['saved_time'] = saved_time_result(operation, result['saved_time'])
         if operation in ('gdm-child-denied-return-ready', 'gdm-child-denied-return-state'):
             states = ('account-list', 'child-prompt')
             if operation == 'gdm-child-denied-return-ready':

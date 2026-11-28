@@ -8,7 +8,7 @@ Each VM family column uses the [ONPC: Watch accounting](../tests/README.md#aggre
 
 | Category | Host inventory | `u26` | `f44` | `f45` | Description |
 | --- | ---: | ---: | ---: | ---: | --- |
-| Unit, property and contract | 5778 | — | — | — | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Unit, property and contract | 5777 | — | — | — | Checks isolated logic, invariants, interfaces and test-harness behavior. |
 | Private D-Bus component | 258 | — | — | — | Checks broker behavior through a private D-Bus without changing the host system. |
 | UI | 336 | — | — | — | Checks GTK and GNOME Shell functional results and accessibility in isolated sessions. |
 | Fixture runtime | 1 | — | — | — | Checks that test fixtures prepare, validate and clean up their controlled environments. |
@@ -17,8 +17,8 @@ Each VM family column uses the [ONPC: Watch accounting](../tests/README.md#aggre
 | graphical-worker | 1 | — | — | — | Checks privileged graphical worker containment with isolated host fixtures. |
 | package-notice | 1 | — | — | — | Checks native package-manager notices in isolated host fixtures. |
 | Installed system | — | 127 | 116 | 116 | Checks installed behavior, lifecycle integration and engineering safety boundaries. |
-| E2E | — | 140 | 142 | 142 | Checks complete customer journeys through the installed product’s public interfaces. |
-| **Total** | **6386** | **267** | **258** | **258** |  |
+| E2E | — | 141 | 143 | 143 | Checks complete customer journeys through the installed product’s public interfaces. |
+| **Total** | **6385** | **268** | **259** | **259** |  |
 
 VM totals include selected installed-system phases, registered standalone checks and runnable E2E variants. Platform filters and additional GNOME Classic executions can change the total by family.
 
@@ -28,9 +28,9 @@ The host inventory counts parametrized Python cases and executable script entrie
 
 | Subcategory | Count (Ready/Pending/Total) |
 | --- | ---: |
-| customer-journey | <span style="color: green">140</span>/<span style="color: gray">43</span>/183 |
+| customer-journey | <span style="color: green">141</span>/<span style="color: gray">43</span>/184 |
 | runner-smoke | <span style="color: green">0</span>/<span style="color: gray">1</span>/1 |
-| **Total** | **<span style="color: green">140</span>/<span style="color: gray">44</span>/184** |
+| **Total** | **<span style="color: green">141</span>/<span style="color: gray">44</span>/185** |
 
 Each number selects exactly one variant. IDs are stored in `tests/e2e/scenarios.json` and stay unchanged when entries are reordered or become ready. Assign new variants fresh IDs; never renumber or reuse an existing ID.
 
@@ -180,6 +180,7 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [266](#scenario-266) | Each child receives their saved warnings before time runs out | `E2E-065/warnings-play-renewal-reboot` | ready |
 | [267](#scenario-267) | Save a running grant at the kiosk and use it later (return: retained unlock) | `E2E-066/saved-time-retained-unlock` | ready |
 | [268](#scenario-268) | Save a running grant at the kiosk and use it later (return: fresh login) | `E2E-066/saved-time-fresh-login` | ready |
+| [269](#scenario-269) | Pause and reuse approved time at the kiosk without losing seconds | `E2E-067/saved-time-kiosk-pause-reuse` | ready |
 | <span style="color: gray">[1](#scenario-1)</span> | <span style="color: gray">Fresh boot and graphical/observation transport</span> | <span style="color: gray">`E2E-001/gdm-observation`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[6](#scenario-6)</span> | <span style="color: gray">Standard user cannot manage policy (launch: terminal)</span> | <span style="color: gray">`E2E-004/terminal`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[38](#scenario-38)</span> | <span style="color: gray">Shared duration boundaries and duplicate submission (choice: predefined; surface: child overlay)</span> | <span style="color: gray">`E2E-014/child-overlay-predefined`</span> | <span style="color: gray">pending</span> |
@@ -2219,6 +2220,21 @@ Variant: return: fresh login
 - Authenticate the selected parent for one custom minute with soft-blocked apps included. Compare the saved total with the running time at transfer plus the approved minute and any previous saved balance. For fresh login, reboot and verify the same balance. Confirm saved time alone leaves access restricted and reread the unchanged saved balance after the attempt.
 - Start saved time once and observe return to sign-in. Use ordinary child credentials and verify that the countdown reflects the elapsed time. Confirm the original desktop for retained unlock or a fresh desktop after reboot, and use the soft-blocked activity.
 - Let the original redeemed allowance expire naturally, verify the native time restriction, and confirm that the saved balance is gone and cannot be started again.
+
+### Scenario 269
+
+**Pause and reuse approved time at the kiosk without losing seconds**
+
+Case: `E2E-067/saved-time-kiosk-pause-reuse` · Category: customer-journey · Status: **ready**
+
+Variant: surface: kiosk
+
+**Steps:**
+
+- At zero daily time, approve a four-minute fixed grant. The child signs in and switches to the kiosk. Read the running balance twice, then pause it without a parent prompt. Wait, leave the station and return; read the other child's Approved time and the same saved balance.
+- Use saved time, unlock the retained desktop with the normal password and compare the countdown. Return to the kiosk, pause and use the time again, then return once more and pause it a third time. Compare each reading with the measured running intervals.
+- In Parent, revoke the saved-only balance. Reopen the station, confirm the other child's Approved time is unchanged and Use saved time is unavailable.
+- Approve Rest of the day and verify that the running deadline grant offers no Pause.
 
 <div style="color: gray">
 

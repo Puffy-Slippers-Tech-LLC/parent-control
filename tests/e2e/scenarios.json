@@ -50,6 +50,48 @@
       ]
     },
     {
+      "id": "E2E-067",
+      "subcategory": "general",
+      "title": "Pause and reuse approved time at the kiosk without losing seconds",
+      "category": "customer-journey",
+      "owners": ["child-access"],
+      "requirements": ["ONPC-CORE-TIME-007", "ONPC-CORE-TIME-010", "ONPC-CORE-TIME-011"],
+      "requirement_gap": null,
+      "contract_refs": ["docs/Save-For-Later-Design.md#scenario-2-pause-existing-granted-time-in-the-kiosk-then-use-it-later", "docs/TestAutomation/E2E-Scenario-Recipes.md#pause-and-reuse-approved-time-at-the-kiosk"],
+      "components": ["parent", "child", "kiosk", "broker"],
+      "environment": ["ubuntu", "fedora"],
+      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "fixture-credentials-via-secret-api", "declared-public-route-and-recipe-data"],
+      "phases": {
+        "setup": [{"id": "setup", "operation": "provision", "description": "Restore the installed snapshot and bind fixture accounts and assets."}],
+        "start": [{"id": "start", "operation": "begin", "description": "Begin an independent attempt at normal sign-in."}],
+        "steps": [
+          {"id": "step-1", "operation": "ui", "description": "At zero daily time, approve a four-minute fixed grant. The child signs in and switches to the kiosk. Read the running balance twice, then pause it without a parent prompt. Wait, leave the station and return; read the other child's Approved time and the same saved balance."},
+          {"id": "step-2", "operation": "ui", "description": "Use saved time, unlock the retained desktop with the normal password and compare the countdown. Return to the kiosk, pause and use the time again, then return once more and pause it a third time. Compare each reading with the measured running intervals."},
+          {"id": "step-3", "operation": "ui", "description": "In Parent, revoke the saved-only balance. Reopen the station, confirm the other child's Approved time is unchanged and Use saved time is unavailable."},
+          {"id": "step-4", "operation": "ui", "description": "Approve Rest of the day and verify that the running deadline grant offers no Pause."}
+        ],
+        "end": [{"id": "end", "operation": "collect", "description": "Reconcile the public readings, session continuity and owned worker shutdown."}],
+        "cleanup": [{"id": "cleanup", "operation": "outer-reset", "description": "Restore the powered-off baseline under the attempt's ownership."}]
+      },
+      "interventions": [],
+      "assertions": {
+        "visible": [
+          {"id": "pause-saves-stable-balance", "step_id": "step-1", "description": "Pause needs no parent prompt and saves the running seconds at the transfer. The saved balance stays the same while waiting and after leaving the station."},
+          {"id": "transfers-conserve-granted-seconds", "step_id": "step-2", "description": "Every pause and use conserves the granted seconds; only the measured running intervals consume time. The child unlocks the same desktop with the normal password."},
+          {"id": "other-child-unchanged", "step_id": "step-3", "description": "The other child's Approved time is identical before and after every transfer and the revocation."},
+          {"id": "revoked-saved-time-unavailable", "step_id": "step-3", "description": "After the parent revokes saved-only time, the refreshed station shows no balance and offers no Use saved time."},
+          {"id": "deadline-grant-offers-no-pause", "step_id": "step-4", "description": "A running Rest of the day grant offers no Pause and saves nothing."}
+        ],
+        "backend": [], "other_user": []
+      },
+      "expected_evidence": ["action-trace", "cleanup", "continuity", "input-provenance", "outcomes", "screen"],
+      "duration_seconds": 3600,
+      "matrix": {"dimensions": {"surface": ["kiosk"]}, "full_combinations": [], "rationale": "One kiosk history covers repeated transfers, saved-only revocation and the deadline restriction."},
+      "variants": [
+        {"coverage_id": 269, "id": "saved-time-kiosk-pause-reuse", "owner": "child-access", "parameters": {"surface": "kiosk"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/saved_time_kiosk_pause_reuse.py", "test_id": "saved-time-kiosk-pause-reuse"}}
+      ]
+    },
+    {
       "id": "E2E-065",
       "subcategory": "general",
       "title": "Each child receives their saved warnings before time runs out",

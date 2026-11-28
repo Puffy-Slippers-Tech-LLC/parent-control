@@ -1,4 +1,9 @@
 {
+  "E2E-067": {
+    "summary": "Pause Riley's approved time at the kiosk, use it again later, then have a parent remove what is left.",
+    "expected": "Pausing needs no parent and saves exactly the time that was left. Only time while the timer runs is used up. Jordan is unaffected, removed saved time cannot be used, and Rest of the day cannot be paused.",
+    "steps": ["Give Riley four minutes, sign in, then switch to the kiosk. Pause the timer and check the saved time stays the same while waiting and after leaving.", "Use the saved time, unlock with Riley's password and check the countdown. Pause and use it again, then pause a third time, comparing each balance with the time that passed.", "Have Jamie remove the saved time in Parent. Reopen the kiosk and check that Jordan is unchanged and Use saved time is gone.", "Approve Rest of the day and check that the kiosk offers no Pause."]
+  },
   "E2E-066": {
     "summary": "Save approved time at the kiosk, then use it to unlock the same desktop.",
     "expected": "The kiosk saves the unused grant and the new minute together. Using the balance once restores access and soft-blocked app use until time runs out.",

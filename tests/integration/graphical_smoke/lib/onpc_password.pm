@@ -251,6 +251,9 @@ sub enter_kiosk_mate_password {
                 && ($journey->{stage_prefix} // '') eq $1 . '-request-'
                 && ref($request) eq 'ARRAY' && join(',', @$request) eq
                     ($1 eq 'jordan' ? 'other-child,parent,0,0' : 'child,parent,600,0');
+            $calendar ||= ($journey->{prefix} // '') eq 'saved-time-kiosk-pause-reuse-final'
+                && ($journey->{stage_prefix} // '') eq 'final-'
+                && ref($request) eq 'ARRAY' && join(',', @$request) eq 'child,parent,0,0';
             my $game = ($journey->{prefix} // '') =~ /\Agame-(?:expiry|fullscreen)-request\z/
                 && ($journey->{stage_prefix} // '') eq 'request-'
                 && ref($request) eq 'ARRAY' && join(',', @$request) eq 'other-child,parent,600,1';
@@ -327,6 +330,9 @@ sub enter_kiosk_mate_password {
                 || ($journey->{prefix} // '') eq 'saved-time-retained-unlock-profile-request'
                 && ($journey->{stage_prefix} // '') eq 'profile-request-'
                 && defined($wrong) && $wrong eq 'request-180'
+                || ($journey->{prefix} // '') eq 'saved-time-kiosk-pause-reuse-profile-request'
+                && ($journey->{stage_prefix} // '') eq 'profile-request-'
+                && defined($wrong) && $wrong eq 'request-240'
                 || ($journey->{prefix} // '') eq 'countdown-combined-profile-request'
                 && ($journey->{stage_prefix} // '') eq 'profile-request-'
                 && defined($wrong) && $wrong eq 'request-240'

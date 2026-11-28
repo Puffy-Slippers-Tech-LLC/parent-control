@@ -228,6 +228,9 @@ msgstr "Enter a valid number."
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 
+msgid "Request time"
+msgstr "Request time"
+
 msgid "Request more time"
 msgstr "Request more time"
 

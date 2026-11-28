@@ -243,6 +243,10 @@ def test_approved_time_tabs_preserve_request_choices_and_show_combined_balances(
     path = open_request(launch_ui, tmp_path, ui, wait, overlay=overlay, scenario="approved-combined")
     ready(ui, wait)
     assert ui.getValue("kiosk-request-tabs") == "request"
+    assert ui.getText("kiosk-tab-request") == "Request time"
+    assert ui.getText("kiosk-tab-approved") == "Approved time"
+    assert ui.absent("kiosk-preferences-button", within="kiosk-request-window")
+    assert ui.absent("kiosk-request-logo", within="kiosk-request-window")
     assert ui.getValue("kiosk-tab-request") is True
     assert ui.getValue("kiosk-tab-approved") is False
     assert ui.showing("kiosk-approver-selector")
@@ -256,6 +260,8 @@ def test_approved_time_tabs_preserve_request_choices_and_show_combined_balances(
     approved_status(ui, wait, "ready")
     assert ui.getValue("kiosk-request-tabs") == "approved"
     assert ui.getValue("kiosk-tab-request") is False
+    assert ui.getValue("kiosk-tab-approved") is True
+    ui.activate("kiosk-tab-approved")
     assert ui.getValue("kiosk-tab-approved") is True
     assert not ui.showing("kiosk-approver-selector")
     assert ui.showing("kiosk-child-selector")

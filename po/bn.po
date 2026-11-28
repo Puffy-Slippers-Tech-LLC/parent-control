@@ -1765,6 +1765,9 @@ msgstr "একটি বৈধ সংখ্যা লিখুন।"
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "অনুমোদিত পরিসর: %(minimum)s – %(maximum)s %(unit)s."
 
+msgid "Request time"
+msgstr "সময়ের অনুরোধ করুন"
+
 msgid "Request more time"
 msgstr "আরও সময়ের অনুরোধ করুন"
 

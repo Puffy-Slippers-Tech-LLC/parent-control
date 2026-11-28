@@ -173,57 +173,6 @@ button.about-link > label {
       inset 0 0 0 1px #111;
 }
 
-.oh-no-parent-control-header {
-  margin: 2px 0 0;
-  padding: 2px 6px 0;
-  border: none;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-}
-
-.oh-no-parent-control-logo-plate {
-  padding: 2px;
-  border: 2px solid #111310;
-  border-top-color: #777a72;
-  border-left-color: #60635c;
-  background-color: #20231f;
-  box-shadow: inset 0 0 0 2px #090a09, 0 3px 0 #090a09;
-}
-
-.oh-no-parent-control-header-icon {
-  min-width: 36px;
-  min-height: 36px;
-}
-
-button.oh-no-parent-control-request-tab {
-  padding: 4px;
-  border: 2px solid #252925;
-  border-top-color: #9aab91;
-  border-radius: 0;
-  background: #3c413a;
-  color: white;
-  font-weight: bold;
-}
-
-button.oh-no-parent-control-request-tab.selected {
-  border-color: #245421;
-  border-top-color: #a5d795;
-  background: #4b9341;
-  color: white;
-}
-
-button.oh-no-parent-control-request-tab:hover,
-button.oh-no-parent-control-request-tab:focus-visible {
-  border-top-color: #d8ffd0;
-}
-
-button.oh-no-parent-control-request-tab:disabled {
-  background: #2a2a2e;
-  border-color: #1a1a1c;
-  color: rgba(255, 255, 255, 0.50);
-}
-
 .oh-no-parent-control-approved-balance {
   color: #a8e599;
   font-size: 2em;
@@ -739,8 +688,11 @@ window.kiosk-whats-new-dialog.onpc-readable-script button {
   color: #cccccc;
 }
 
-.preferences-tabs { margin-bottom: 0; }
-.oh-no-parent-control-language-dialog button.preferences-tab {
+.request-tabs {
+  /* Clear the board rails and chain mounts painted over the form content. */
+  margin: 20px 24px 0;
+}
+box.plate-tabs > button {
   background: transparent;
   border: none;
   border-radius: 0;
@@ -751,11 +703,14 @@ window.kiosk-whats-new-dialog.onpc-readable-script button {
   font-size: 14px;
   font-weight: bold;
 }
-.oh-no-parent-control-language-dialog button.preferences-tab:checked { color: #a4fff0; }
-.oh-no-parent-control-language-dialog button.preferences-tab:focus-visible {
+box.plate-tabs > button:checked { color: #a4fff0; }
+box.plate-tabs > button:not(:checked) { opacity: 0.78; }
+box.plate-tabs > button:focus-visible {
   outline: 2px solid #f4f4f4;
   outline-offset: -5px;
 }
+box.request-tabs > button { font-family: sans-serif; }
+box.request-tabs > button:disabled { opacity: 0.55; }
 .preferences-page {
   border: 1px solid #436366;
   border-radius: 6px;
@@ -873,23 +828,6 @@ button.reminder-delete { color: #ff3535; }
   border: 1px solid #3c7d89;
   border-radius: 7px;
   background: rgba(13, 35, 39, 0.3);
-}
-.oh-no-parent-control-dialog button.kiosk-preferences-button {
-  min-width: 20px;
-  min-height: 20px;
-  padding: 2px;
-  border: 2px solid #667875;
-  border-radius: 0;
-  background: linear-gradient(#445351, #253330);
-  box-shadow: inset 1px 1px #a3b1a8;
-}
-.oh-no-parent-control-dialog button.kiosk-preferences-button:hover,
-.oh-no-parent-control-dialog button.kiosk-preferences-button:focus-visible {
-  background: linear-gradient(#607572, #374b46);
-  border-color: #a8d8ca;
-}
-.oh-no-parent-control-dialog button.kiosk-preferences-button:active {
-  background: #1c302b;
 }
 .oh-no-parent-control-language-dialog button.reminder-add {
   min-height: 28px;

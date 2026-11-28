@@ -1765,6 +1765,9 @@ msgstr "درست عدد درج کریں۔"
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "مجاز حد: %(minimum)s – %(maximum)s %(unit)s."
 
+msgid "Request time"
+msgstr "وقت مانگیں"
+
 msgid "Request more time"
 msgstr "مزید وقت مانگیں"
 

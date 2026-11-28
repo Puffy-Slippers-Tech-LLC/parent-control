@@ -1765,6 +1765,9 @@ msgstr "സാധുവായ ഒരു സംഖ്യ നൽകുക."
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "അനുവദനീയമായ പരിധി: %(minimum)s – %(maximum)s %(unit)s."
 
+msgid "Request time"
+msgstr "സമയം ആവശ്യപ്പെടുക"
+
 msgid "Request more time"
 msgstr "കൂടുതൽ സമയം ആവശ്യപ്പെടുക"
 

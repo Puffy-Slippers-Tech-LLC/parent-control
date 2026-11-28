@@ -1763,6 +1763,9 @@ msgstr "Saisissez un nombre valide."
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "Plage autorisée: %(minimum)s – %(maximum)s %(unit)s."
 
+msgid "Request time"
+msgstr "Demander du temps"
+
 msgid "Request more time"
 msgstr "Demander plus de temps"
 

@@ -19,13 +19,12 @@ import gi
 gi.require_version("Gtk", "4.0")
 from gi.repository import Gdk, GLib, Gtk, Pango
 
-from common.oh_no_parent_control_ui.about import branding_asset_path
 from common.oh_no_parent_control_ui.accessibility import describe_control, set_automation_id
 from common.oh_no_parent_control_ui.application_ui import bind_ui
 from common.oh_no_parent_control_ui.user_icon import apply_gtk_user_icon, parse_listed_user
 from .chrome import (
-    POINTER, SHIELD, GEAR, ArmoredBox, ArmoredButton,
-    MetalBoard, MetalPanel, PixelIcon,
+    POINTER, SHIELD, ArmoredBox, ArmoredButton,
+    MetalBoard, MetalPanel, PixelIcon, PlateTab,
 )
 from broker.oh_no_parent_control.preferences import (
     DEFAULT_TIME_GRANT_PRESETS, MIN_CUSTOM_MINUTES, MAX_CUSTOM_MINUTES,
@@ -328,8 +327,7 @@ class RequestContent(MetalBoard):
     """Reusable request-time form used as the kiosk's primary content."""
 
     def __init__(self, on_request, on_cancel, on_account_selected=None, *,
-                 lock_child_selector=False, on_values_changed=None, selection_store=None,
-                 on_preferences=None):
+                 lock_child_selector=False, on_values_changed=None, selection_store=None):
         super().__init__(
             orientation=Gtk.Orientation.VERTICAL,
             spacing=2,
@@ -365,7 +363,6 @@ class RequestContent(MetalBoard):
         self._selection_store = selection_store
         self._on_account_selected = on_account_selected
         self._on_values_changed = on_values_changed
-        self._on_preferences = on_preferences
         self._suppress_values_changed = False
         self._pending_approver_uid = 0
         self._kiosk_muted = True
@@ -378,7 +375,7 @@ class RequestContent(MetalBoard):
         self._body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         self._form_overlay.set_child(self._body)
         self.append(self._form_overlay)
-        self._body.append(self._header())
+        self._body.append(self._build_tab_bar())
         self._status = localized(Gtk.Label, 
             label=m.LOADING_REQUEST_DETAILS,
             wrap=True,
@@ -622,57 +619,32 @@ class RequestContent(MetalBoard):
         if self._request.is_sensitive():
             self._request.emit("clicked")
 
-    def _header(self):
-        header = MetalPanel(spacing=8, panel_kind="header")
-        set_automation_id(header, "kiosk-request-header")
-        header.add_css_class("oh-no-parent-control-header")
-        icon = Gtk.Image.new_from_file(
-            str(branding_asset_path("app_logo.png")),
-        )
-        set_automation_id(icon, "kiosk-request-logo")
-        icon.set_pixel_size(36)
-        icon.set_valign(Gtk.Align.CENTER)
-        icon.add_css_class("oh-no-parent-control-header-icon")
-        plate = Gtk.Box()
-        set_automation_id(plate, "kiosk-request-logo-plate")
-        plate.add_css_class("oh-no-parent-control-logo-plate")
-        plate.set_valign(Gtk.Align.CENTER)
-        plate.append(icon)
-        header.append(plate)
-        self._tab_bar = Gtk.Box(spacing=4, hexpand=True, homogeneous=True,
+    def _build_tab_bar(self):
+        self._tab_bar = Gtk.Box(homogeneous=True, css_classes=["plate-tabs", "request-tabs"],
                                 accessible_role=Gtk.AccessibleRole.TAB_LIST)
         set_automation_id(self._tab_bar, "kiosk-request-tabs")
         bind_ui(self._tab_bar, get_value=lambda: self._pages.get_visible_child_name(),
                 set_value=self.select_tab, choices=lambda: list(self._tabs))
-        for name, caption in (("request", m.REQUEST_MORE_TIME), ("approved", m.APPROVED_TIME)):
-            button = Gtk.Button(accessible_role=Gtk.AccessibleRole.TAB)
-            button.add_css_class("oh-no-parent-control-request-tab")
+        for name, caption in (("request", m.REQUEST_TIME), ("approved", m.APPROVED_TIME)):
+            button = PlateTab(hexpand=True, accessible_role=Gtk.AccessibleRole.TAB)
             button.set_child(localized(Gtk.Label, label=caption, wrap=True,
-                                       justify=Gtk.Justification.CENTER))
+                                       justify=Gtk.Justification.CENTER,
+                                       margin_start=12, margin_end=12,
+                                       margin_top=7, margin_bottom=7))
             describe_control(button, caption, caption, automation_id=f"kiosk-tab-{name}")
-            bind_ui(button, get_value=lambda name=name: self._pages.get_visible_child_name() == name)
-            button.connect("clicked", lambda _button, name=name: self.select_tab(name))
+            if name == "approved":
+                button.set_group(self._tabs["request"])
+            button.connect("toggled", self._tab_toggled, name)
             self._tabs[name] = button
             self._tab_bar.append(button)
         keys = Gtk.EventControllerKey()
         keys.connect("key-pressed", self._tab_key_pressed)
         self._tab_bar.add_controller(keys)
-        header.append(self._tab_bar)
-        self._preferences = localized(Gtk.Button,
-                                      tooltip_text=m.PREFERENCES, valign=Gtk.Align.CENTER,
-                                      css_classes=['kiosk-preferences-button'])
-        # Header hardware is painted over its children without reserving space.
-        # Keep the compact action inside the face, clear of the right rivet/rail.
-        self._preferences.set_margin_end(10)
-        gear = PixelIcon(GEAR, display_size=16, label='')
-        gear.set_halign(Gtk.Align.CENTER)
-        gear.set_valign(Gtk.Align.CENTER)
-        self._preferences.set_child(gear)
-        describe_control(self._preferences, m.PREFERENCES, m.PREFERENCES,
-                         automation_id='kiosk-preferences-button')
-        self._preferences.connect('clicked', lambda *_: self._on_preferences and self._on_preferences())
-        header.append(self._preferences)
-        return header
+        return self._tab_bar
+
+    def _tab_toggled(self, button, name):
+        if button.get_active():
+            self.select_tab(name)
 
     def select_tab(self, name):
         if not isinstance(name, str) or name not in self._tabs:
@@ -688,13 +660,9 @@ class RequestContent(MetalBoard):
 
     def _sync_tabs(self):
         active = self._pages.get_visible_child_name()
+        self._tabs[active].set_active(True)
         for name, button in self._tabs.items():
-            selected = name == active
-            button.update_state([Gtk.AccessibleState.SELECTED], [selected])
-            if selected:
-                button.add_css_class("selected")
-            else:
-                button.remove_css_class("selected")
+            button.update_state([Gtk.AccessibleState.SELECTED], [name == active])
         request = active == "request"
         self._request_split.set_visible(request)
         self._status_row.set_visible(request)
@@ -1558,7 +1526,6 @@ class RequestContent(MetalBoard):
         self._tab_bar.set_sensitive(navigation)
         for button in self._tabs.values():
             button.set_sensitive(navigation)
-        self._preferences.set_sensitive(navigation)
         accounts_enabled = navigation and not self._lock_child_selector
         self._accounts.set_interaction_enabled(accounts_enabled)
         # Expose the effective locked state on the actionable descendant too.

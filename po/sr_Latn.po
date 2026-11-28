@@ -1777,6 +1777,9 @@ msgstr "Unesite ispravan broj."
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "Dozvoljeni opseg: %(minimum)s – %(maximum)s %(unit)s."
 
+msgid "Request time"
+msgstr "Zatraži vreme"
+
 msgid "Request more time"
 msgstr "Zatraži još vremena"
 

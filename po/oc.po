@@ -1765,6 +1765,9 @@ msgstr "Picatz un nombre valid."
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "Plaja autorizada: %(minimum)s – %(maximum)s %(unit)s."
 
+msgid "Request time"
+msgstr "Demandar de temps"
+
 msgid "Request more time"
 msgstr "Demandar mai de temps"
 

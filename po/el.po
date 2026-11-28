@@ -1765,6 +1765,9 @@ msgstr "Εισαγάγετε έναν έγκυρο αριθμό."
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "Επιτρεπόμενο εύρος: %(minimum)s – %(maximum)s %(unit)s."
 
+msgid "Request time"
+msgstr "Ζητήστε χρόνο"
+
 msgid "Request more time"
 msgstr "Ζητήστε περισσότερο χρόνο"
 

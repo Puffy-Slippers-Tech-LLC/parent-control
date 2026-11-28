@@ -1765,6 +1765,9 @@ msgstr "Sisesta sobiv arv."
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "Lubatud vahemik: %(minimum)s – %(maximum)s %(unit)s."
 
+msgid "Request time"
+msgstr "Küsi aega"
+
 msgid "Request more time"
 msgstr "Küsi lisaaega"
 

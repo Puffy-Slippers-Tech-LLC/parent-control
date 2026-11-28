@@ -1765,6 +1765,9 @@ msgstr "वैध संख्या प्रविष्ट करा."
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "अनुमत श्रेणी: %(minimum)s – %(maximum)s %(unit)s."
 
+msgid "Request time"
+msgstr "वेळ मागा"
+
 msgid "Request more time"
 msgstr "अधिक वेळ मागा"
 

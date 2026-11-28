@@ -1765,6 +1765,9 @@ msgstr "कोई मान्य संख्या दर्ज करें�
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "अनुमत सीमा: %(minimum)s – %(maximum)s %(unit)s."
 
+msgid "Request time"
+msgstr "समय माँगें"
+
 msgid "Request more time"
 msgstr "और समय माँगें"
 

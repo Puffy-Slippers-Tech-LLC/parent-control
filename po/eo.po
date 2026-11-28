@@ -1765,6 +1765,9 @@ msgstr "Enigu validan nombron."
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "Permesita intervalo: %(minimum)s – %(maximum)s %(unit)s."
 
+msgid "Request time"
+msgstr "Peti tempon"
+
 msgid "Request more time"
 msgstr "Peti pli da tempo"
 

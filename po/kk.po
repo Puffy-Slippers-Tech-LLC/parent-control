@@ -1759,6 +1759,9 @@ msgstr "Жарамды сан енгізіңіз."
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "Рұқсат етілген ауқым: %(minimum)s – %(maximum)s %(unit)s."
 
+msgid "Request time"
+msgstr "Уақыт сұрау"
+
 msgid "Request more time"
 msgstr "Көбірек уақыт сұрау"
 

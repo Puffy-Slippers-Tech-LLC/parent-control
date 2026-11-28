@@ -4,8 +4,6 @@ import copy
 import math
 import uuid
 
-import cairo
-
 from common.oh_no_parent_control_ui import messages as m
 from common.oh_no_parent_control_ui.translation_widgets import (
     localized, set_text, accessible_text, context_for, TranslationContext, fixed_direction,
@@ -26,7 +24,7 @@ from common.oh_no_parent_control_ui.languages import (
     SUPPORTED_LANGUAGES, language_direction, language_matches, selected_language,
 )
 from common.oh_no_parent_control_ui.user_icon import apply_gtk_user_icon
-from .chrome import ArmoredButton, MetalBoard
+from .chrome import ArmoredButton, MetalBoard, PlateTab
 from .preset_dialog import PresetDialog
 from .duration_controls import DurationControls, DurationError, DurationEditorActions, duration_number
 from .request_content import _duration_label
@@ -36,37 +34,6 @@ from broker.oh_no_parent_control.preferences import (
 
 SHELL_PREVIEW_NAME = 'com.puffyslippers.OhNoParentControl.ReminderPreview'
 SHELL_PREVIEW_PATH = '/com/puffyslippers/OhNoParentControl/ReminderPreview'
-
-
-class PreferenceTab(Gtk.ToggleButton):
-    """Stepped cyan/purple plates spanning the complete tab header."""
-
-    def do_snapshot(self, snapshot):
-        width, height = self.get_width(), self.get_height()
-        cr = snapshot.append_cairo(Graphene.Rect().init(0, 0, width, height))
-        active = self.get_active()
-        top = 1 if active else 3
-        cr.move_to(1, height - 1)
-        for x, y in ((1, height - 5), (5, height - 5), (5, height - 10),
-                     (9, height - 10), (9, top + 8), (13, top + 8),
-                     (13, top + 4), (19, top + 4), (19, top),
-                     (width - 19, top), (width - 19, top + 4),
-                     (width - 13, top + 4), (width - 13, top + 8),
-                     (width - 9, top + 8), (width - 9, height - 10),
-                     (width - 5, height - 10), (width - 5, height - 5),
-                     (width - 1, height - 5), (width - 1, height - 1)):
-            cr.line_to(x, y)
-        cr.close_path()
-        fill = cairo.LinearGradient(0, 0, 0, height)
-        rgb = (0.04, 0.40, 0.36) if active else (0.23, 0.19, 0.36)
-        fill.add_color_stop_rgba(0, *rgb, 0.95)
-        fill.add_color_stop_rgba(1, *rgb, 0.65)
-        cr.set_source(fill)
-        cr.fill_preserve()
-        cr.set_source_rgb(*((0.16, 0.91, 0.79) if active else (0.57, 0.43, 0.78)))
-        cr.set_line_width(2)
-        cr.stroke()
-        Gtk.ToggleButton.do_snapshot(self, snapshot)
 
 
 class PreferenceTabIcon(Gtk.Widget):
@@ -459,7 +426,7 @@ class PreferencesDialog(Gtk.Window):
         header.append(self._close)
         content.append(header)
 
-        tabs = Gtk.Box(homogeneous=True, spacing=0, css_classes=['preferences-tabs'])
+        tabs = Gtk.Box(homogeneous=True, spacing=0, css_classes=['plate-tabs'])
         fixed_direction(tabs, Gtk.TextDirection.LTR)
         self._tabs = tabs
         self._tab_choices = {}
@@ -468,7 +435,7 @@ class PreferencesDialog(Gtk.Window):
                 set_value=self._ui_select_tab, choices=['language', 'reminders', 'presets'])
         for name, message in (('language', m.LANGUAGE), ('reminders', m.REMINDERS),
                               ('presets', m.PRESET_TIMES)):
-            tab = PreferenceTab(css_classes=['preferences-tab'], hexpand=True)
+            tab = PlateTab(hexpand=True)
             child = Gtk.Box(spacing=10, halign=Gtk.Align.CENTER,
                             margin_start=12, margin_end=12, margin_top=7, margin_bottom=7)
             child.append(PreferenceTabIcon(name))

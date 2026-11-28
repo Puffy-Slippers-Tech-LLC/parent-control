@@ -1270,7 +1270,6 @@ class RequestWindow(Adw.ApplicationWindow):
             self._request_access, self._cancel, self._load_preferences,
             lock_child_selector=self._child_overlay,
             on_values_changed=self._form_values_changed,
-            on_preferences=self._show_preferences,
             selection_store=(None if self._preview else SelectionStore(
                 Path(GLib.get_user_state_dir()) / "oh-no-parent-control" / "request-selections.json",
                 child_overlay=self._child_overlay,

@@ -1759,6 +1759,9 @@ msgstr "유효한 숫자를 입력하세요."
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "허용 범위: %(minimum)s – %(maximum)s %(unit)s."
 
+msgid "Request time"
+msgstr "시간 요청하기"
+
 msgid "Request more time"
 msgstr "시간 더 요청하기"
 

@@ -1760,6 +1760,9 @@ msgstr "Yaroqli raqam kiriting."
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "Ruxsat etilgan oraliq: %(minimum)s – %(maximum)s %(unit)s."
 
+msgid "Request time"
+msgstr "Vaqt so‘rash"
+
 msgid "Request more time"
 msgstr "Ko‘proq vaqt so‘rash"
 

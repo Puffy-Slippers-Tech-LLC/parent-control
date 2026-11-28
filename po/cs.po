@@ -1771,6 +1771,9 @@ msgstr "Zadejte platné číslo."
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "Povolený rozsah: %(minimum)s – %(maximum)s %(unit)s."
 
+msgid "Request time"
+msgstr "Požádat o čas"
+
 msgid "Request more time"
 msgstr "Požádat o více času"
 

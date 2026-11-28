@@ -139,7 +139,7 @@ OPERATION_LABELS = {
        for operation in accessible_ui.BOUND_MATE_ORDER},
     **{operation: 'Checking approval to save time for the chosen child'
        for operation in accessible_ui.SAVED_MATE_ORDER},
-    'kiosk-saved-tab-request': 'Opening the station’s Request more time tab',
+    'kiosk-saved-tab-request': 'Opening the station’s Request time tab',
     'kiosk-saved-tab-approved': 'Opening the station’s Approved time tab',
     'kiosk-saved-read': 'Reading the station’s approved and saved time',
     'kiosk-saved-use': 'Using the saved time at the station',

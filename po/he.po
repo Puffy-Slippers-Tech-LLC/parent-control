@@ -1765,6 +1765,9 @@ msgstr "יש להזין מספר תקין."
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "הטווח המותר: %(minimum)s – %(maximum)s %(unit)s."
 
+msgid "Request time"
+msgstr "לבקש זמן"
+
 msgid "Request more time"
 msgstr "לבקש עוד זמן"
 

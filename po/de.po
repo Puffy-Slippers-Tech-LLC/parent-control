@@ -1763,6 +1763,9 @@ msgstr "Geben Sie eine gültige Zahl ein."
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "Zulässiger Bereich: %(minimum)s – %(maximum)s %(unit)s."
 
+msgid "Request time"
+msgstr "Zeit anfragen"
+
 msgid "Request more time"
 msgstr "Mehr Zeit anfragen"
 

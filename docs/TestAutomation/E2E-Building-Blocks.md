@@ -1528,7 +1528,7 @@ are unnecessary.
 
 #### Saved-time controls
 
-Use `AccessibleUI.select_request_tab` to activate the owned Request more time
+Use `AccessibleUI.select_request_tab` to activate the owned Request time
 or Approved time tab. Read `AccessibleUI.saved_time_state` separately for
 running approved seconds beyond daily time, saved seconds, daily seconds and
 enabled actions. Both operations use the shared form's public IDs and bind

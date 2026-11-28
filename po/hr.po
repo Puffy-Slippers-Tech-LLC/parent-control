@@ -1771,6 +1771,9 @@ msgstr "Unesite valjani broj."
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "Dopušteni raspon: %(minimum)s – %(maximum)s %(unit)s."
 
+msgid "Request time"
+msgstr "Zatraži vrijeme"
+
 msgid "Request more time"
 msgstr "Zatraži više vremena"
 

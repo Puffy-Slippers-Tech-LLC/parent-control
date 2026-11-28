@@ -45,7 +45,7 @@ def submit_request(ui, wait):
 
 
 def open_preset_preferences(ui, wait):
-    """Use the title-bar action and await its asynchronous language read."""
-    ui.activate('kiosk-preferences-button')
+    """Use the request menu and await the asynchronous language read."""
+    ui.setValue('kiosk-menu-button', 'preferences')
     wait(lambda: ui.showing('preferences-tabs'), 'preferences available')
     ui.setValue('preferences-tabs', 'presets')

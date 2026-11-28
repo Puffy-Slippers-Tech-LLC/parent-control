@@ -1765,6 +1765,9 @@ msgstr "یک عدد معتبر وارد کنید."
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "محدودهٔ مجاز: %(minimum)s – %(maximum)s %(unit)s."
 
+msgid "Request time"
+msgstr "درخواست زمان"
+
 msgid "Request more time"
 msgstr "درخواست زمان بیشتر"
 

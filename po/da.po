@@ -1765,6 +1765,9 @@ msgstr "Indtast et gyldigt tal."
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "Tilladt interval: %(minimum)s – %(maximum)s %(unit)s."
 
+msgid "Request time"
+msgstr "Anmod om tid"
+
 msgid "Request more time"
 msgstr "Anmod om mere tid"
 

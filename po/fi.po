@@ -1765,6 +1765,9 @@ msgstr "Anna kelvollinen luku."
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "Sallittu alue: %(minimum)s – %(maximum)s %(unit)s."
 
+msgid "Request time"
+msgstr "Pyydä aikaa"
+
 msgid "Request more time"
 msgstr "Pyydä lisää aikaa"
 

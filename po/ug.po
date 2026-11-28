@@ -1774,8 +1774,8 @@ msgstr "ئىلتىماس قىلىپ ھازىر ئىشلىتىڭ"
 msgid "More request options"
 msgstr "باشقا ئىلتىماس تاللانمىلىرى"
 
-msgid "Request & save for later"
-msgstr "ئىلتىماس قىلىپ كېيىنگە ساقلاڭ"
+msgid "Save & use later"
+msgstr "ساقلاپ كېيىن ئىشلىتىش"
 
 msgid "Rest of the day can't be saved."
 msgstr "بۈگۈننىڭ قالغان قىسمىنى كېيىنگە ساقلىغىلى بولمايدۇ."

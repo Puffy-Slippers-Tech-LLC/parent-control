@@ -1780,8 +1780,8 @@ msgstr "समय माँगें और अभी इस्तेमाल �
 msgid "More request options"
 msgstr "अनुरोध के और विकल्प"
 
-msgid "Request & save for later"
-msgstr "समय माँगें और बाद के लिए सहेजें"
+msgid "Save & use later"
+msgstr "सहेजें और बाद में उपयोग करें"
 
 msgid "Rest of the day can't be saved."
 msgstr "‘दिन का शेष समय’ सहेजा नहीं जा सकता।"

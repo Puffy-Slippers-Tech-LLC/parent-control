@@ -1774,8 +1774,8 @@ msgstr "Minta dan gunakan sekarang"
 msgid "More request options"
 msgstr "Opsi permintaan lainnya"
 
-msgid "Request & save for later"
-msgstr "Minta dan simpan untuk nanti"
+msgid "Save & use later"
+msgstr "Simpan & gunakan nanti"
 
 msgid "Rest of the day can't be saved."
 msgstr "Opsi “Sisa hari ini” tidak dapat disimpan."

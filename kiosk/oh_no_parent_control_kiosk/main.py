@@ -2005,6 +2005,11 @@ class RequestWindow(Adw.ApplicationWindow):
         if self._preview and not self._interactive_preview:
             if estimate is not None and estimate[1]:
                 self._request_content.set_time_estimate(_time_estimate_label(15 * 60 + estimate[1]))
+            # Sample status for the static preview, so its time-based options are usable.
+            requested = estimate[1] if estimate is not None else 0
+            self._request_content.set_grant_status("ready", GrantView(
+                daily_seconds=15 * 60, requested_seconds=requested,
+                immediate_estimate=requested, deferred_estimate=requested))
             return GLib.SOURCE_CONTINUE
         selection = self._request_content.grant_status_selection()
         if selection is None:

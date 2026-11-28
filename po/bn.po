@@ -1780,8 +1780,8 @@ msgstr "অনুরোধ করুন ও এখনই ব্যবহার �
 msgid "More request options"
 msgstr "অনুরোধের আরও বিকল্প"
 
-msgid "Request & save for later"
-msgstr "অনুরোধ করুন ও পরে ব্যবহারের জন্য সংরক্ষণ করুন"
+msgid "Save & use later"
+msgstr "সংরক্ষণ করুন ও পরে ব্যবহার করুন"
 
 msgid "Rest of the day can't be saved."
 msgstr "‘দিনের বাকি সময়’ সংরক্ষণ করা যায় না।"

@@ -1780,8 +1780,8 @@ msgstr "Küsi ja kasuta kohe"
 msgid "More request options"
 msgstr "Rohkem taotlusvalikuid"
 
-msgid "Request & save for later"
-msgstr "Küsi ja salvesta hilisemaks"
+msgid "Save & use later"
+msgstr "Salvesta ja kasuta hiljem"
 
 msgid "Rest of the day can't be saved."
 msgstr "Valikut „Ülejäänud päev“ ei saa salvestada."

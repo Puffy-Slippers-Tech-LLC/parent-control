@@ -1780,8 +1780,8 @@ msgstr "ਮੰਗੋ ਅਤੇ ਹੁਣੇ ਵਰਤੋ"
 msgid "More request options"
 msgstr "ਬੇਨਤੀ ਲਈ ਹੋਰ ਚੋਣਾਂ"
 
-msgid "Request & save for later"
-msgstr "ਮੰਗੋ ਅਤੇ ਬਾਅਦ ਲਈ ਸੰਭਾਲੋ"
+msgid "Save & use later"
+msgstr "ਸੰਭਾਲੋ ਅਤੇ ਬਾਅਦ ਵਿੱਚ ਵਰਤੋ"
 
 msgid "Rest of the day can't be saved."
 msgstr "ਦਿਨ ਦਾ ਬਾਕੀ ਸਮਾਂ ਬਾਅਦ ਲਈ ਸੰਭਾਲਿਆ ਨਹੀਂ ਜਾ ਸਕਦਾ।"

@@ -1772,8 +1772,8 @@ msgstr "请求并立即使用"
 msgid "More request options"
 msgstr "更多请求选项"
 
-msgid "Request & save for later"
-msgstr "请求并留待以后使用"
+msgid "Save & use later"
+msgstr "保存并稍后使用"
 
 msgid "Rest of the day can't be saved."
 msgstr "今天剩余时间无法留待以后使用。"

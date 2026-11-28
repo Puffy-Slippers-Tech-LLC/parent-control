@@ -517,7 +517,7 @@ button.oh-no-parent-control-cancel-button,
 }
 
 button.oh-no-parent-control-request-button,
-menubutton.oh-no-parent-control-request-menu > button,
+button.oh-no-parent-control-request-menu,
 .oh-no-parent-control-secondary-page button.suggested-action {
   min-height: 26px;
   padding: 3px 6px;
@@ -549,7 +549,7 @@ menubutton.oh-no-parent-control-request-menu > button,
 }
 
 .oh-no-parent-control-request-split button.oh-no-parent-control-request-button,
-.oh-no-parent-control-request-split menubutton > button {
+.oh-no-parent-control-request-split button.oh-no-parent-control-request-menu {
   margin-top: 0;
   box-shadow: inset 0 1px rgba(255, 255, 255, 0.28);
 }
@@ -561,8 +561,8 @@ menubutton.oh-no-parent-control-request-menu > button,
 
 button.oh-no-parent-control-request-button:hover,
 button.oh-no-parent-control-request-button:focus-visible,
-menubutton.oh-no-parent-control-request-menu > button:hover,
-menubutton.oh-no-parent-control-request-menu > button:focus-visible,
+button.oh-no-parent-control-request-menu:hover,
+button.oh-no-parent-control-request-menu:focus-visible,
 .oh-no-parent-control-secondary-page button.suggested-action:hover,
 .oh-no-parent-control-secondary-page button.suggested-action:focus-visible {
   border-top-color: #d8ffd0;
@@ -572,7 +572,7 @@ menubutton.oh-no-parent-control-request-menu > button:focus-visible,
 }
 
 /* A slim chevron leaves the request label the width it needs. */
-.oh-no-parent-control-request-split menubutton > button {
+.oh-no-parent-control-request-split button.oh-no-parent-control-request-menu {
   min-width: 0;
   padding: 3px 5px;
 }
@@ -582,8 +582,55 @@ menubutton.oh-no-parent-control-request-menu > button:focus-visible,
   box-shadow: inset 0 1px rgba(255, 255, 255, 0.36);
 }
 
+/* Split-button options drop below the split as a speech bubble whose tail
+   points at the chevron. */
+.oh-no-parent-control-request-menu-panel {
+  padding: 2px;
+  border: 2px solid #e6f5dc;
+  border-radius: 3px;
+  background-color: #46873c;
+  box-shadow: 0 4px 0 #163c14, 0 8px 20px rgba(0, 0, 0, 0.34);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+/* Only the up-facing edges get the bubble border; the rest blends into it. */
+.oh-no-parent-control-request-menu-tail {
+  min-width: 14px;
+  min-height: 14px;
+  border-top: 2px solid #e6f5dc;
+  border-left: 2px solid #e6f5dc;
+  background-color: #5fa04d;
+  transform: rotate(45deg);
+}
+
+.oh-no-parent-control-request-menu-panel button.oh-no-parent-control-request-button {
+  margin-top: 0;
+  text-transform: uppercase;
+  border-color: transparent;
+  box-shadow: none;
+  background-color: #46873c;
+  background-image: repeating-linear-gradient(to bottom,
+      #5fa04d 0px, #5fa04d 2px, #46863b 2px, #46863b 4px);
+}
+
+/* Out-specifies the shared disabled rule so an unavailable option stays green. */
+.oh-no-parent-control-request-menu-panel button.oh-no-parent-control-request-button:disabled {
+  color: rgba(255, 255, 255, 0.55);
+  border-color: transparent;
+  background-color: #427f37;
+  background-image: repeating-linear-gradient(to bottom,
+      #5a9849 0px, #5a9849 2px, #427f37 2px, #427f37 4px);
+  box-shadow: none;
+}
+
+.oh-no-parent-control-request-menu-panel button.oh-no-parent-control-request-button:hover,
+.oh-no-parent-control-request-menu-panel button.oh-no-parent-control-request-button:focus-visible {
+  background-image: repeating-linear-gradient(to bottom,
+      #67aa54 0px, #67aa54 2px, #4b8f40 2px, #4b8f40 4px);
+}
+
 button.oh-no-parent-control-request-button:disabled,
-menubutton.oh-no-parent-control-request-menu > button:disabled {
+button.oh-no-parent-control-request-menu:disabled {
   color: rgba(255, 255, 255, 0.42);
   border-color: #1a1a1c;
   background: #2a2a2e;

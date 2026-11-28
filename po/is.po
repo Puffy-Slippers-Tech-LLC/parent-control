@@ -1780,8 +1780,8 @@ msgstr "Biðja um og nota strax"
 msgid "More request options"
 msgstr "Fleiri valkostir fyrir beiðni"
 
-msgid "Request & save for later"
-msgstr "Biðja um og vista til seinna"
+msgid "Save & use later"
+msgstr "Vista og nota seinna"
 
 msgid "Rest of the day can't be saved."
 msgstr "Ekki er hægt að vista valkostinn „Það sem eftir er af deginum“."

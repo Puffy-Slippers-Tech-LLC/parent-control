@@ -1780,8 +1780,8 @@ msgstr "Domande e dopre cumò"
 msgid "More request options"
 msgstr "Altris opzions pe domande"
 
-msgid "Request & save for later"
-msgstr "Domande e salve par dopo"
+msgid "Save & use later"
+msgstr "Salve e dopre dopo"
 
 msgid "Rest of the day can't be saved."
 msgstr "No si pues salvâ «Il rest de zornade»."

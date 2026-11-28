@@ -162,7 +162,7 @@ opens the Request time tab.
   omission, not permission to remove account selection or selected-parent
   authentication. It belongs only in this tab, between child and duration fields.
 - Primary split-button action: **Request & use now**.
-- Dropdown action: **Request & save for later**. It is insensitive while Rest of
+- Dropdown action: **Save & use later**. It is insensitive while Rest of
   the day is selected, with the explanation “Rest of the day can't be saved.”
 - The dropdown is a menu/popover, not a permanently expanded second button.
   Selecting its action closes the menu and submits that request after validation.
@@ -288,7 +288,7 @@ desktop.
 
 1. Riley switches to the kiosk and selects Riley. The grant keeps ticking.
 2. On Request time, select the parent, Custom **20 minutes**, the app choice,
-   and **Request & save for later**.
+   and **Save & use later**.
 3. The selected parent authenticates in the trusted prompt. Assume **18 minutes
    remain at the broker's transfer boundary B**, not at form opening.
 4. The broker first adds the 20 approved minutes to saved time. The
@@ -468,7 +468,7 @@ each implemented once and shared by both surfaces:
 
 - `pause_grant(validated_context)` is the [pause step](#the-pause-step). It ends
   a running fixed grant and adds its time beyond daily time to saved time.
-  Pause uses it directly. Request & save for later first
+  Pause uses it directly. Save & use later first
   [saves its approved minutes](#saving-approved-minutes), then runs the pause
   step under the same broker lock when a fixed grant runs. The pause step does
   its own validation and session handling.
@@ -641,7 +641,7 @@ such a child until it is reloaded; saved time grants no desktop access, so this
 fails safe. With an old broker, GDBus rejects a method missing from the
 registered interface with `org.freedesktop.DBus.Error.UnknownMethod` before
 dispatch. A new client treats that reply from any new method as “saved time
-unavailable”. It shows no balance, disables Request & save for later, Pause and
+unavailable”. It shows no balance, disables Save & use later, Pause and
 Use saved time, and keeps immediate requests on the existing methods. It never
 treats an unknown method as zero and never substitutes an immediate request for
 a deferred one. The existing `RebootRequired` route is unchanged.
@@ -763,7 +763,7 @@ for the next attempt.
 
 ### Saving approved minutes
 
-Request & save for later always begins with a store-only write. Right after
+Save & use later always begins with a store-only write. Right after
 authentication, revalidation and effect admission, atomically replace and fsync
 the record and its directory with the saved balance increased by N and the
 request's app choice. There is no `ActiveExtension` write, no app write and no
@@ -772,7 +772,7 @@ saved minutes remain committed.
 
 ### The pause step
 
-Pause, and Request & save for later after its store write, use this protocol:
+Pause, and Save & use later after its store write, use this protocol:
 
 1. Under serialization, validate caller, target, control and revision. Read the
    record and the live tuple `R = (i, d)` and require that R is the recorded

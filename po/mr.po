@@ -1780,8 +1780,8 @@ msgstr "विनंती करा आणि आता वापरा"
 msgid "More request options"
 msgstr "विनंतीचे आणखी पर्याय"
 
-msgid "Request & save for later"
-msgstr "विनंती करा आणि नंतरसाठी जतन करा"
+msgid "Save & use later"
+msgstr "जतन करा आणि नंतर वापरा"
 
 msgid "Rest of the day can't be saved."
 msgstr "दिवसाचा उरलेला भाग नंतरसाठी जतन करता येत नाही."

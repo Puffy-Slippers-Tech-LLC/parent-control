@@ -1780,8 +1780,8 @@ msgstr "Anmod og brug nu"
 msgid "More request options"
 msgstr "Flere anmodningsmuligheder"
 
-msgid "Request & save for later"
-msgstr "Anmod og gem til senere"
+msgid "Save & use later"
+msgstr "Gem og brug senere"
 
 msgid "Rest of the day can't be saved."
 msgstr "»Resten af dagen« kan ikke gemmes."

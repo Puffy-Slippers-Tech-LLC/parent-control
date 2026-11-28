@@ -1780,8 +1780,8 @@ msgstr "לבקש ולהשתמש עכשיו"
 msgid "More request options"
 msgstr "אפשרויות בקשה נוספות"
 
-msgid "Request & save for later"
-msgstr "לבקש ולשמור למועד מאוחר יותר"
+msgid "Save & use later"
+msgstr "לשמור ולהשתמש מאוחר יותר"
 
 msgid "Rest of the day can't be saved."
 msgstr "אי אפשר לשמור את האפשרות ״שאר היום״."

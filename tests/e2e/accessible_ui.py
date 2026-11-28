@@ -12797,7 +12797,7 @@ class AccessibleUI:
         return {'surface': 'child-overlay' if overlay else 'kiosk', 'tab': name}
 
     def submit_saved_request(self):
-        """Open the split menu and activate Request & save for later once."""
+        """Open the split menu and activate Save & use later once."""
         child, approver = self.kiosk_bound_values()[:2]
         menu = self.kiosk_valid_target('kiosk-request-menu', child=child, approver=approver)
         self.input_uncertain = True

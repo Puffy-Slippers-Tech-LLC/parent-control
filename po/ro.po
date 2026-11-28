@@ -1786,8 +1786,8 @@ msgstr "Cere și folosește acum"
 msgid "More request options"
 msgstr "Mai multe opțiuni de solicitare"
 
-msgid "Request & save for later"
-msgstr "Cere și păstrează pentru mai târziu"
+msgid "Save & use later"
+msgstr "Păstrează și folosește mai târziu"
 
 msgid "Rest of the day can't be saved."
 msgstr "Restul zilei nu poate fi păstrat pentru mai târziu."

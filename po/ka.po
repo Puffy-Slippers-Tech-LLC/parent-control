@@ -1774,8 +1774,8 @@ msgstr "მოითხოვეთ და გამოიყენეთ ახ
 msgid "More request options"
 msgstr "მოთხოვნის სხვა ვარიანტები"
 
-msgid "Request & save for later"
-msgstr "მოითხოვეთ და შეინახეთ მოგვიანებით გამოსაყენებლად"
+msgid "Save & use later"
+msgstr "შენახვა და მოგვიანებით გამოყენება"
 
 msgid "Rest of the day can't be saved."
 msgstr "„დღის დარჩენილი ნაწილის“ შენახვა შეუძლებელია."

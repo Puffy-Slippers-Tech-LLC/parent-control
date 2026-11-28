@@ -17,7 +17,7 @@ from pathlib import Path
 import gi
 
 gi.require_version("Gtk", "4.0")
-from gi.repository import Gdk, GLib, Gtk, Pango
+from gi.repository import Gdk, GLib, GObject, Gtk, Pango
 
 from common.oh_no_parent_control_ui.accessibility import describe_control, set_automation_id
 from common.oh_no_parent_control_ui.application_ui import bind_ui
@@ -92,6 +92,90 @@ GRANT_STATUS_TEXT = {
     "disabled": m.SCREEN_LIMIT_IS_NOT_ENABLED_IN_PARENT_APP,
     "empty": m.NO_APPROVED_TIME,
 }
+
+
+class FooterMenu(Gtk.Button):
+    """A split-button chevron whose options drop below the whole split.
+
+    Like GatewayDropDown, the options live on the form's overlay so the gateway
+    yaw applies to them; a popover surface would stay flat.
+    """
+
+    def __init__(self, identity, *, overlay, anchor, frame):
+        super().__init__(icon_name="pan-down-symbolic")
+        self._overlay = overlay
+        self._anchor = anchor
+        self._frame = frame
+        self.add_css_class("oh-no-parent-control-request-menu")
+        describe_control(self, m.MORE_REQUEST_OPTIONS, m.MORE_REQUEST_OPTIONS,
+                         automation_id=identity)
+        self.panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        set_automation_id(self.panel, f"{identity}-popover")
+        self.panel.add_css_class("oh-no-parent-control-request-menu-panel")
+        self.panel.set_visible(False)
+        overlay.add_overlay(self.panel)
+        # A rotated square drawn over the bubble's top edge points at the chevron.
+        self._tail = Gtk.Box(can_target=False)
+        self._tail.add_css_class("oh-no-parent-control-request-menu-tail")
+        self.panel.bind_property("visible", self._tail, "visible",
+                                 GObject.BindingFlags.SYNC_CREATE)
+        overlay.add_overlay(self._tail)
+        overlay.connect("get-child-position", self._position_panel)
+        self.connect("clicked", lambda _button: self.popdown() or self.popup())
+        self.connect("unmap", lambda _button: self.popdown())
+        bind_ui(self, get_value=self.is_open, set_value=self._set_open)
+
+    def _position_panel(self, overlay, child, allocation):
+        if child is not self.panel and child is not self._tail:
+            return False
+        anchor_valid, anchor = self._anchor.compute_bounds(overlay.get_child())
+        frame_valid, frame = self._frame.compute_bounds(overlay.get_child())
+        chevron_valid, chevron = self.compute_bounds(overlay.get_child())
+        if not (anchor_valid and frame_valid and chevron_valid):
+            return False
+        if child is self._tail:
+            size = child.measure(Gtk.Orientation.HORIZONTAL, -1)[1]
+            allocation.x = int(chevron.get_x() + (chevron.get_width() - size) / 2)
+            allocation.y = int(frame.get_y() + frame.get_height()) + 4 - size // 2
+            allocation.width = allocation.height = size
+            return True
+        # Span from the primary action's left edge to the chevron's right edge.
+        allocation.x = int(anchor.get_x())
+        allocation.y = int(frame.get_y() + frame.get_height()) + 4
+        allocation.width = int(chevron.get_x() + chevron.get_width()) - allocation.x
+        allocation.height = child.measure(Gtk.Orientation.VERTICAL, allocation.width)[1]
+        return True
+
+    def is_open(self):
+        return self.panel.get_visible()
+
+    def _set_open(self, opened):
+        if type(opened) is not bool:
+            raise ValueError("request menu state requires a boolean")
+        self.popup() if opened else self.popdown()
+
+    def popup(self):
+        if self.is_sensitive() and self.get_mapped():
+            self.panel.set_visible(True)
+            self._overlay.queue_allocate()
+
+    def popdown(self):
+        """Close the options; return whether they were open."""
+        if not self.panel.get_visible():
+            return False
+        root = self.get_root()
+        focus = root.get_focus() if root is not None else None
+        self.panel.set_visible(False)
+        if focus is not None and focus.is_ancestor(self.panel):
+            self.grab_focus()
+        return True
+
+    def dismiss_unless_target(self, target):
+        if target is not None and any(
+            target is widget or target.is_ancestor(widget) for widget in (self, self.panel)
+        ):
+            return
+        self.popdown()
 
 
 class GatewayDropDown(Gtk.Box):
@@ -457,7 +541,7 @@ class RequestContent(MetalBoard):
         outside_click = Gtk.GestureClick(
             button=Gdk.BUTTON_PRIMARY, propagation_phase=Gtk.PropagationPhase.CAPTURE,
         )
-        outside_click.connect("pressed", self._dismiss_account_choices_on_click)
+        outside_click.connect("pressed", self._dismiss_floating_on_click)
         self._form_overlay.add_controller(outside_click)
         self._approvers.set_hexpand(True)
         approver_selector = self._account_row(
@@ -604,9 +688,9 @@ class RequestContent(MetalBoard):
         self._request.set_sensitive(False)
         self._request.connect("clicked", on_request)
         self._request_actions = Gtk.Stack(hexpand=True)
-        self._request_actions.add_named(self._build_request_split(), "request")
-        self._request_actions.add_named(self._build_approved_actions(), "approved")
         actions_frame = ArmoredBox(hexpand=True, armor_kind="cancel")
+        self._request_actions.add_named(self._build_request_split(actions_frame), "request")
+        self._request_actions.add_named(self._build_approved_actions(actions_frame), "approved")
         actions_frame.add_css_class("oh-no-parent-control-request-split")
         actions_frame.append(self._request_actions)
 
@@ -758,23 +842,19 @@ class RequestContent(MetalBoard):
         set_automation_id(label, identity)
         return label
 
-    def _build_request_split(self):
+    def _build_request_split(self, frame):
         split = Gtk.Box(spacing=3)
         split.append(self._request)
-        self._request_menu = self._footer_menu("kiosk-request-menu")
+        self._request_menu = self._footer_menu("kiosk-request-menu", self._request, frame)
         split.append(self._request_menu)
-        items = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
-        self._save_for_later = self._action_button(
-            m.REQUEST_SAVE_FOR_LATER, "kiosk-request-save-for-later",
-            self._save_requested, primary=False)
+        self._save_for_later = self._menu_option(
+            m.REQUEST_SAVE_FOR_LATER, "kiosk-request-save-for-later", self._save_requested)
         self._save_hint = self._approved_label("kiosk-request-save-hint")
-        self._save_hint.set_max_width_chars(25)
-        items.append(self._save_for_later)
-        items.append(self._save_hint)
-        self._request_menu.get_popover().set_child(items)
+        self._request_menu.panel.append(self._save_for_later)
+        self._request_menu.panel.append(self._save_hint)
         return split
 
-    def _build_approved_actions(self):
+    def _build_approved_actions(self, frame):
         self._approved_primary = Gtk.Stack(hexpand=True)
         self._request_more = self._footer_button(
             m.REQUEST_MORE_TIME, "request-more", self._return_to_request)
@@ -786,10 +866,11 @@ class RequestContent(MetalBoard):
 
         split = Gtk.Box(spacing=3)
         split.append(self._approved_primary)
-        self._approved_menu = self._footer_menu("kiosk-approved-menu")
-        self._pause_option = self._action_button(
-            m.PAUSE_TIMER, "kiosk-approved-menu-pause", self._pause_requested, primary=False)
-        self._approved_menu.get_popover().set_child(self._pause_option)
+        self._approved_menu = self._footer_menu(
+            "kiosk-approved-menu", self._approved_primary, frame)
+        self._pause_option = self._menu_option(
+            m.PAUSE_TIMER, "kiosk-approved-menu-pause", self._pause_requested)
+        self._approved_menu.panel.append(self._pause_option)
         split.append(self._approved_menu)
         return split
 
@@ -805,40 +886,24 @@ class RequestContent(MetalBoard):
         self._approved_primary.add_named(button, name)
         return button
 
-    def _footer_menu(self, identity):
-        popover = Gtk.Popover(autohide=True, position=Gtk.PositionType.BOTTOM)
-        set_automation_id(popover, f"{identity}-popover")
-        menu = Gtk.MenuButton(popover=popover, icon_name="pan-down-symbolic")
-        menu.add_css_class("oh-no-parent-control-request-menu")
-        describe_control(menu, m.MORE_REQUEST_OPTIONS, m.MORE_REQUEST_OPTIONS,
-                         automation_id=identity)
-        bind_ui(menu, get_value=popover.get_visible,
-                set_value=lambda opened: self._set_request_menu_open(menu, opened))
-        return menu
+    def _footer_menu(self, identity, anchor, frame):
+        return FooterMenu(identity, overlay=self._form_overlay, anchor=anchor, frame=frame)
 
-    @staticmethod
-    def _set_request_menu_open(menu, opened):
-        if type(opened) is not bool:
-            raise ValueError("request menu state requires a boolean")
-        if opened:
-            menu.popup()
-        else:
-            menu.popdown()
+    def _menu_option(self, caption, identity, clicked):
+        button = self._action_button(caption, identity, clicked)
+        button.add_css_class("oh-no-parent-control-request-menu-option")
+        return button
 
     def dismiss_request_menu(self):
-        for menu in (self._request_menu, self._approved_menu):
-            if menu.get_popover().get_visible():
-                menu.popdown()
-                return True
-        return False
+        return self._request_menu.popdown() or self._approved_menu.popdown()
 
     def dismiss_account_choices(self):
         return self._accounts.collapse() or self._approvers.collapse()
 
-    def _dismiss_account_choices_on_click(self, _gesture, _press_count, x, y):
+    def _dismiss_floating_on_click(self, _gesture, _press_count, x, y):
         target = self._form_overlay.pick(x, y, Gtk.PickFlags.DEFAULT)
-        self._accounts.dismiss_unless_target(target)
-        self._approvers.dismiss_unless_target(target)
+        for control in (self._accounts, self._approvers, self._request_menu, self._approved_menu):
+            control.dismiss_unless_target(target)
 
     def _build_approved_page(self):
         page = MetalPanel(orientation=Gtk.Orientation.VERTICAL, spacing=10,

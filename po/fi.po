@@ -1780,8 +1780,8 @@ msgstr "Pyydä ja käytä heti"
 msgid "More request options"
 msgstr "Lisää pyyntövaihtoehtoja"
 
-msgid "Request & save for later"
-msgstr "Pyydä ja tallenna myöhemmäksi"
+msgid "Save & use later"
+msgstr "Tallenna ja käytä myöhemmin"
 
 msgid "Rest of the day can't be saved."
 msgstr "”Loppupäivä”-valintaa ei voi tallentaa."

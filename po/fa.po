@@ -1780,8 +1780,8 @@ msgstr "درخواست و استفادهٔ فوری"
 msgid "More request options"
 msgstr "گزینه‌های بیشتر درخواست"
 
-msgid "Request & save for later"
-msgstr "درخواست و ذخیره برای بعد"
+msgid "Save & use later"
+msgstr "ذخیره و استفاده در بعد"
 
 msgid "Rest of the day can't be saved."
 msgstr "گزینهٔ «باقی روز» را نمی‌توان ذخیره کرد."

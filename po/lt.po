@@ -1786,8 +1786,8 @@ msgstr "Prašyti ir naudoti dabar"
 msgid "More request options"
 msgstr "Daugiau prašymo parinkčių"
 
-msgid "Request & save for later"
-msgstr "Prašyti ir išsaugoti vėlesniam naudojimui"
+msgid "Save & use later"
+msgstr "Išsaugoti ir naudoti vėliau"
 
 msgid "Rest of the day can't be saved."
 msgstr "Parinkties „Likusi dienos dalis“ išsaugoti negalima."

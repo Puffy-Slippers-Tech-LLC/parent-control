@@ -1780,8 +1780,8 @@ msgstr "Demana i fes-lo servir ara"
 msgid "More request options"
 msgstr "Més opcions de sol·licitud"
 
-msgid "Request & save for later"
-msgstr "Demana i desa per a més endavant"
+msgid "Save & use later"
+msgstr "Desa i fes servir més tard"
 
 msgid "Rest of the day can't be saved."
 msgstr "No es pot desar «La resta del dia»."

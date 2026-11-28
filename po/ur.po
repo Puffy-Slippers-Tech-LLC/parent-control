@@ -1780,8 +1780,8 @@ msgstr "مانگیں اور ابھی استعمال کریں"
 msgid "More request options"
 msgstr "درخواست کے مزید اختیارات"
 
-msgid "Request & save for later"
-msgstr "مانگیں اور بعد کے لیے محفوظ کریں"
+msgid "Save & use later"
+msgstr "محفوظ کریں اور بعد میں استعمال کریں"
 
 msgid "Rest of the day can't be saved."
 msgstr "دن کا باقی حصہ بعد کے لیے محفوظ نہیں کیا جا سکتا۔"

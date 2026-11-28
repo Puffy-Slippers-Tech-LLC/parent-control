@@ -1780,8 +1780,8 @@ msgstr "Aanvragen en nu gebruiken"
 msgid "More request options"
 msgstr "Meer aanvraagopties"
 
-msgid "Request & save for later"
-msgstr "Aanvragen en bewaren voor later"
+msgid "Save & use later"
+msgstr "Bewaren en later gebruiken"
 
 msgid "Rest of the day can't be saved."
 msgstr "De rest van de dag kan niet worden bewaard."

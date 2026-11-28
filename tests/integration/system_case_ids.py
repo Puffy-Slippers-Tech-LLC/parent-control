@@ -665,6 +665,8 @@ CASES = (
                  'Recover active desktop usage after the timer store is busy'),
     CaseIdentity(320, 'package', 'test_saved_grant_update',
                  'Keep saved time and running grants through a package update'),
+    CaseIdentity(321, 'session', 'test_saved_time_lock_before_capture',
+                 'Check that pausing captures all usage on every target'),
     CaseIdentity(322, 'session', 'test_child_ssh_time_admission',
                  'Let children with time sign in through SSH on Fedora'),
 )

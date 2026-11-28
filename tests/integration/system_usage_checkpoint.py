@@ -112,11 +112,11 @@ def receive(control, event, *, sender=None):
 
 
 class Trace:
-    def __init__(self):
+    def __init__(self, *, extra_rules=()):
         self.condition = threading.Condition()
         self.rows = []
         self.overflow = False
-        self.bus = monitor_timer(self.emit)
+        self.bus = monitor_timer(self.emit, extra_rules=extra_rules)
 
     def emit(self, _, **row):
         with self.condition:

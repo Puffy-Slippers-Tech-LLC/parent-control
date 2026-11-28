@@ -28,6 +28,7 @@ def attempts(selection, *, fresh_install=False):
     # autologin fixture. Keep it isolated for both current and fresh installs.
     groups.append((('extension-login',), not fresh_install))
     groups.append(((system.USAGE_CHECKPOINT_PHASE,), True))
+    groups.append(((system.SAVED_TIME_LOCK_PHASE,), True))
     groups.append(((system.SSH_ADMISSION_PHASE,), True))
     result = []
     def append(phases, executions, installed):
@@ -75,6 +76,9 @@ def run_attempts(suite, directory, selection, manifest, selected_inputs_sha256, 
     # Lifecycle histories can run in a different order from the phase registry.
     # Count every selected/prerequisite execution in its actual attempt order.
     executions = tuple(item for selected, _ in planned for item in selected.executions)
+    system.require(len(executions) == len(selection.executions)
+                   and set(executions) == set(selection.executions),
+                   'selection:incomplete-attempt-layout')
     with watching(executions, suite.lease) as progress:
         suite.system_progress = progress
         options = ({'fixture_selection': fixture_selection,

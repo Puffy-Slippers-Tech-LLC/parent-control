@@ -16,9 +16,9 @@ Each VM family column uses the [ONPC: Watch accounting](../tests/README.md#aggre
 | Child GJS | 1 | — | — | — | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
 | graphical-worker | 1 | — | — | — | Checks privileged graphical worker containment with isolated host fixtures. |
 | package-notice | 1 | — | — | — | Checks native package-manager notices in isolated host fixtures. |
-| Installed system | — | 125 | 113 | 113 | Checks installed behavior, lifecycle integration and engineering safety boundaries. |
+| Installed system | — | 126 | 114 | 114 | Checks installed behavior, lifecycle integration and engineering safety boundaries. |
 | E2E | — | 138 | 140 | 140 | Checks complete customer journeys through the installed product’s public interfaces. |
-| **Total** | **6008** | **263** | **253** | **253** |  |
+| **Total** | **6008** | **264** | **254** | **254** |  |
 
 VM totals include selected installed-system phases, registered standalone checks and runnable E2E variants. Platform filters and additional GNOME Classic executions can change the total by family.
 

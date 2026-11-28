@@ -1,29 +1,206 @@
 """Observe installed kiosk pause and SSH admission against real logind and Malcontent."""
 
 from contextlib import contextmanager
+from datetime import datetime
 import json
+import math
 import os
 from pathlib import Path
 import pwd
 import signal
 import stat
 import subprocess
+import sys
 import tempfile
 import time
 
+from gi.repository import Gio, GLib
+
 import system_guest as guest
-from system_assertions import accepted, call, session_limits
+from system_assertions import accepted, account_property, call, session_limits
+from system_caller import FixturePassword, PersistentCaller, SessionCaller, TextAgent
+from system_extension_monitor import Shell
 from system_graphical_expiry import child_session, wait_for
-from system_session_expiry import identities
+from system_session_expiry import LIMITS, identities, installed_manager
+from system_usage_checkpoint import (TIMER, Trace, bus_identity, covered, is_call,
+                                     is_reply, merge, shell_senders, values)
 
 
+LOGIN = 'org.freedesktop.login1'
+SESSION = LOGIN + '.Session'
+PROPERTIES = 'org.freedesktop.DBus.Properties'
+ACCOUNTS = 'org.freedesktop.Accounts'
 ALLOWANCE_MINUTES = 120
+AWAY_SECONDS = 8
+LOCK_TIMEOUT_SECONDS = 5
+TRANSFER_MARGIN_SECONDS = 5
+VT = '6'
+
+
+def prepare():
+    guest.guard()
+    accounts = identities()
+    child = accounts['child']
+    account, _ = installed_manager()._account(child)
+    guest.require(child_session(child) is None and not account_property(
+        child, ACCOUNTS + '.User', 'AutomaticLogin'), 'pause-capture:child-desktop-already-prepared')
+    accepted(call(accounts['parent'], 'SetParentControl', '(ubu)', (child, True, ALLOWANCE_MINUTES)))
+    accepted(call(accounts['parent'], 'RevokeOneTimeGrant', '(u)', (child,)))
+    guest.require(session_limits(child) == (2, ALLOWANCE_MINUTES * 60, [0, 0]),
+                  'pause-capture:daily-limit-fixture')
+    guest.run(['busctl', '--system', 'call', ACCOUNTS, f'/org/freedesktop/Accounts/User{account.pw_uid}',
+               ACCOUNTS + '.User', 'SetAutomaticLogin', 'b', 'true'])
+    guest.require(account_property(child, ACCOUNTS + '.User', 'AutomaticLogin') is True,
+                  'pause-capture:autologin-not-prepared')
 
 
 def session_properties(session, *names, category='pause-capture:session-properties'):
     return guest.parse_properties(guest.run(['loginctl', 'show-session', session,
         *(f'--property={name}' for name in names)], timeout=10), names,
         category=category)
+
+
+def child_usage(reader):
+    reader.send({'kind': 'timer-self-usage'})
+    return accepted(reader.receive(), category='pause-capture:cannot-read-child-usage')
+
+
+def daily_remaining(records, epoch):
+    day = datetime.fromtimestamp(epoch).replace(hour=0, minute=0, second=0, microsecond=0)
+    start_today = int(day.timestamp())
+    intervals = [(max(start, start_today), min(end, epoch)) for start, end in records
+                 if max(start, start_today) < min(end, epoch)]
+    return max(0, ALLOWANCE_MINUTES * 60 - covered(intervals))
+
+
+def grant_status(kiosk, child):
+    status = accepted(kiosk.call('GetGrantStatus', '(uu)', (child, 0)))
+    guest.require(len(status) == 12, 'pause-capture:invalid-grant-status')
+    return status
+
+
+def approve(kiosk, accounts):
+    parent, child = accounts['parent'], accounts['child']
+    password = FixturePassword()
+    password.install(parent)
+    with TextAgent(kiosk) as agent:
+        kiosk.send({'kind': 'call', 'method': 'RequestAccess', 'signature': '(uuub)',
+                    'args': (child, parent, 600, False)})
+        agent.prompt(parent, pwd.getpwnam('onpc-parent-casey').pw_uid)
+        agent.authenticate(password)
+        result = accepted(kiosk.receive(), category='pause-capture:initial-approval-failed')
+    guest.require(result[1] == 'approved', 'pause-capture:initial-approval-not-committed')
+
+
+def pause_trace(kiosk, child, revision, session_path, owners, other_readers):
+    broker, logind, timer = owners
+    # Match only the work of this pause. Observe public traffic without
+    # intercepting requests, modifying the daemon, or supplying a timer reply.
+    rules = (f"sender='{broker}'", f"sender='{logind}'",
+             f"type='method_call',sender='{kiosk.name}',member='PauseGrant'")
+    with Trace(extra_rules=rules) as trace:
+        result = kiosk.call('PauseGrant', '(ut)', (child, revision))
+        request = trace.until(lambda row: is_call(
+            row, kiosk.name, guest.BUS, 'PauseGrant', destination=guest.BUS))
+        guest.require(request is not None and values(request, '(ut)') == (child, revision),
+                      'pause-capture:missing-pause-request')
+        reply = trace.reply(request, broker)
+        guest.require(reply is not None, 'pause-capture:missing-pause-reply')
+        rows = trace.rows[trace.rows.index(request) + 1:trace.rows.index(reply)]
+
+    def exchanges(calls, owner):
+        for request in calls:
+            response = next((row for row in rows if is_reply(row, request, owner)), None)
+            if response is not None and response['kind'] == 2:
+                yield request, response
+
+    def broker_logind(row, member):
+        return is_call(row, broker, LOGIN + '.Manager', member, destination=LOGIN)
+
+    locks = [row for row in rows if broker_logind(row, 'LockSession')]
+    locked_reads = [reply for _, reply in exchanges(
+        (row for row in rows if is_call(row, broker, PROPERTIES, 'GetAll', destination=LOGIN)
+         and row['path'] == session_path), logind) if values(reply, '(a{sv})')[0]['LockedHint']]
+    queries = [(query, reply, values(reply, '(a(tt))')[0])
+               for query, reply in exchanges(
+        (row for row in rows if row['sender'] not in other_readers and row['destination'] in (TIMER, timer)
+         and row['kind'] == 1 and row['interface'] == TIMER + '.Parent' and row['member'] == 'QueryUsage'
+         and values(row, '(uss)') == (child, 'login-session', '')), timer)]
+    writes = [row for row in rows if is_call(row, broker, PROPERTIES, 'Set', destination=ACCOUNTS)
+              and row['path'] == f'/org/freedesktop/Accounts/User{child}'
+              and values(row, '(ssv)')[:2] == (LIMITS, 'ActiveExtension')]
+    session_checks = [row for row in rows if broker_logind(row, 'ListSessions')]
+    return result, locks, locked_reads, queries, writes, session_checks
+
+
+def check_pause(kiosk, child, session, path, owners, other_readers, record, *, away=None):
+    before = grant_status(kiosk, child)
+    source = account_property(child, LIMITS, 'ActiveExtension')
+    guest.require(before[8] == 'fixed' and before[9] == sum(source),
+                  'pause-capture:running-fixed-fixture')
+    result, locks, locked_reads, queries, writes, session_checks = pause_trace(
+        kiosk, child, before[0], path, owners, other_readers)
+    label = 'raw-switch' if away else 'already-locked-with-ssh'
+    if away:
+        away_start, away_end, prior = away
+        guest.require(len(locks) == 1 and values(locks[0], '(s)') == (session,),
+                      'pause-capture:expected-lock-request-for-child-desktop')
+        lock = locks[0]
+        lock_read = next((row for row in locked_reads if row['monotonic'] > lock['monotonic']), None)
+        if lock_read is not None:
+            record('onpc.pause-capture.lock-observed-seconds',
+                   f"{lock_read['monotonic'] - lock['monotonic']:.3f}")
+        guest.require(lock_read is not None, 'pause-capture:broker-did-not-observe-locked-hint')
+        min_end = int(lock['wall']) - 1
+        old_ends = {end for _, end in prior}
+        qualifying = next(((reply, usage) for query, reply, usage in queries
+                           if query['monotonic'] > lock_read['monotonic'] and any(
+                               min_end <= end <= int(reply['wall']) and end not in old_ends
+                               for _, end in usage)), None)
+        guest.require(qualifying is not None, 'pause-capture:missing-fresh-completed-usage-after-lock')
+        usage_reply, completed = qualifying
+        latency = usage_reply['monotonic'] - lock['monotonic']
+        record('onpc.pause-capture.completed-usage-observed-seconds', f'{latency:.3f}')
+        guest.require(0 < latency <= LOCK_TIMEOUT_SECONDS,
+                      'pause-capture:lock-and-usage-exceeded-product-deadline')
+        guest.require(any(start <= away_start and end >= away_end for start, end in merge(completed)),
+                      'pause-capture:completed-usage-missed-switched-away-time')
+    else:
+        guest.require(not locks and locked_reads and len(queries) == 1,
+                      'pause-capture:already-locked-session-required-another-lock-or-usage-poll')
+        _, usage_reply, completed = queries[0]
+        guest.require(completed and max(end for _, end in completed) <
+                      int(usage_reply['wall']) - LOCK_TIMEOUT_SECONDS,
+                      'pause-capture:already-locked-record-was-still-fresh')
+
+    accepted(result, category=f'pause-capture:{label}-pause-did-not-succeed')
+    guest.require(len(writes) == 1 and usage_reply['monotonic'] < writes[0]['monotonic'],
+                  'pause-capture:grant-shortened-before-completed-usage')
+    shortened = account_property(child, LIMITS, 'ActiveExtension')
+    boundary = sum(shortened)
+    capture_check = next((row for row in session_checks
+                          if usage_reply['monotonic'] < row['monotonic'] < writes[0]['monotonic']), None)
+    captured_second = boundary - TRANSFER_MARGIN_SECONDS
+    guest.require(shortened[0] == source[0] and values(writes[0], '(ssv)')[2] == tuple(shortened)
+                  and capture_check is not None
+                  and int(usage_reply['wall']) <= captured_second <= int(capture_check['wall']),
+                  'pause-capture:grant-boundary-not-set-after-usage-observation')
+    after = grant_status(kiosk, child)
+    elapsed_daily = daily_remaining(completed, captured_second)
+    expected = sum(source) - boundary - elapsed_daily
+    guest.require(expected > 0 and after[0] > before[0] and after[2] == elapsed_daily
+                  and after[5] == before[5] + expected,
+                  'pause-capture:saved-balance-does-not-match-completed-usage')
+    if away:
+        # At the same stop boundary, treating the switched-away seconds as
+        # unspent daily time gives a different saved balance.
+        counterfactual_daily = daily_remaining(prior, captured_second)
+        guest.require(counterfactual_daily - elapsed_daily >= away_end - away_start,
+                      'pause-capture:saved-balance-does-not-distinguish-switched-away-usage')
+    guest.require(session_properties(session, 'Active', 'LockedHint') ==
+                  {'Active': 'no', 'LockedHint': 'yes'}, 'pause-capture:child-desktop-not-locked')
+    record(f'onpc.pause-capture.{label}', 'passed')
+    return after[0], usage_reply['wall']
 
 
 def listed_child_sessions(uid):
@@ -221,3 +398,67 @@ def verify_ssh_admission(record, scratch):
         with child_ssh(child, ssh):
             record('onpc.ssh-admission.restored-time', 'publickey; sshd-logind-session; command-round-trip')
     guest.require(guest.run(['getenforce']) == 'Enforcing', 'ssh-admission:selinux-not-enforcing')
+
+
+def verify(record, scratch):
+    guest.guard()
+    accounts = identities()
+    child = accounts['child']
+    kiosk_uid = json.loads(Path('/etc/oh-no-parent-control/config.json').read_text())['kiosk_uid']
+    session, _ = wait_for(lambda: child_session(child), 'pause-capture:child-autologin')
+    manager = installed_manager()
+    account, _ = manager._account(child)
+    address = wait_for(lambda: manager._live_session_address(account), 'pause-capture:child-bus')
+    shell = Shell(account, address)
+    try:
+        other_readers = shell_senders(shell, child)
+        system = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
+        with SessionCaller(kiosk_uid) as kiosk, PersistentCaller(child) as reader:
+            approve(kiosk, accounts)
+            child_usage(reader)
+            owners = tuple(bus_identity(system, 'GetNameOwner', name) for name in (guest.BUS, LOGIN, TIMER))
+            path, = system.call_sync(LOGIN, '/org/freedesktop/login1', LOGIN + '.Manager',
+                'GetSession', GLib.Variant('(s)', (session,)), GLib.VariantType.new('(o)'),
+                Gio.DBusCallFlags.NONE, 5000, None).unpack()
+            other_readers = {*other_readers, reader.name}
+            props = session_properties(session, 'Seat', 'Active', 'LockedHint', 'VTNr')
+            original_vt = props['VTNr']
+            guest.require(props['Seat'] == 'seat0' and props['Active'] == 'yes' and
+                          props['LockedHint'] == 'no' and original_vt.isdecimal()
+                          and original_vt != VT and guest.run(['fgconsole']) == original_vt,
+                          'pause-capture:child-not-on-foreground-vt')
+            terminals = [row.split()[1] for row in guest.run(['who']).splitlines() if row.strip()]
+            guest.require('tty' + VT not in terminals, 'pause-capture:destination-vt-in-use')
+            guest.run(['chvt', VT], timeout=10)
+            try:
+                wait_for(lambda: session_properties(session, 'Active', 'LockedHint') ==
+                         {'Active': 'no', 'LockedHint': 'no'}, 'pause-capture:raw-vt-did-not-retain-unlocked-child')
+                away_start = math.ceil(time.time())
+                time.sleep(AWAY_SECONDS)
+                away_end = int(time.time())
+                prior = child_usage(reader)
+                guest.require(away_end > away_start and all(
+                    end <= away_start or start >= away_end for start, end in prior),
+                    'pause-capture:raw-vt-produced-completed-usage')
+                guest.require(session_properties(session, 'Active', 'LockedHint') ==
+                              {'Active': 'no', 'LockedHint': 'no'}, 'pause-capture:child-locked-before-pause')
+                revision, first_capture = check_pause(kiosk, child, session, path, owners,
+                    other_readers, record, away=(away_start, away_end, prior))
+                wait_for(lambda: time.time() >= first_capture + LOCK_TIMEOUT_SECONDS + 2,
+                         'pause-capture:prior-record-did-not-age', timeout=15)
+                accepted(kiosk.call('UseSavedTime', '(ut)', (child, revision)),
+                         category='pause-capture:cannot-start-second-fixed-grant')
+                with child_ssh_identity(child, scratch) as ssh, child_ssh(child, ssh) as active:
+                    check_pause(kiosk, child, session, path, owners, other_readers, record)
+                    guest.require(ssh_sessions(child) == active, 'pause-capture:pause-ended-child-ssh-session')
+            finally:
+                guest.require(guest.run(['fgconsole']) == VT, 'pause-capture:owned-vt-replaced')
+                guest.run(['chvt', original_vt], timeout=10)
+                guest.require(guest.run(['fgconsole']) == original_vt, 'pause-capture:vt-not-restored')
+    finally:
+        shell.close()
+
+
+if __name__ == '__main__':
+    guest.require(sys.argv[1:] == ['prepare'], 'pause-capture:invalid-preparation-command')
+    prepare()

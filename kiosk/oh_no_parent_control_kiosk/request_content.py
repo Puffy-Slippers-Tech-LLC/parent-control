@@ -63,7 +63,6 @@ DURATIONS = tuple((_duration_label(None if value == 'custom' else int(value)),
                   for value in time_grant_choices(list(DEFAULT_TIME_GRANT_PRESETS)))
 DEFAULT_DURATION_SECONDS = OPTIONS["default_duration_seconds"]
 NUMBER_RE = re.compile(r"^(?:\d+(?:\.\d+)?|\.\d+)$")
-# Expanded account lists stay on the gateway plane, so they grow the board.
 # Keep only two rows visible and page with matching chevrons when more exist.
 VISIBLE_ACCOUNT_CHOICES = 2
 
@@ -100,12 +99,12 @@ class GatewayDropDown(Gtk.Box):
 
     GTK's stock drop-down presents its choices in a popover surface.  That surface is
     outside the request form's snapshot, so it cannot inherit the form's 3D
-    gateway transform.  Keeping the choice list here makes both the trigger
-    and its expanded content descendants of the transformed form.
+    gateway transform. Overlay the choices on the form in that same snapshot.
     """
 
-    def __init__(self, automation_namespace, automation_label, on_selected=None):
-        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+    def __init__(self, automation_namespace, automation_label, on_selected=None, *,
+                 overlay, before_open):
+        super().__init__(orientation=Gtk.Orientation.VERTICAL)
         if (type(automation_namespace) is not str
                 or not re.fullmatch(r"[a-z][a-z0-9-]*", automation_namespace)):
             raise ValueError("invalid account selector automation namespace")
@@ -114,6 +113,7 @@ class GatewayDropDown(Gtk.Box):
         self._automation_namespace = automation_namespace
         self._automation_label = automation_label
         self._on_selected = on_selected
+        self._before_open = before_open
         self._selected = Gtk.INVALID_LIST_POSITION
         self._items = ()
         self._item_identities = ()
@@ -154,10 +154,24 @@ class GatewayDropDown(Gtk.Box):
         self._choices.append(self._scroll_up)
         self._choices.append(self._choice_list)
         self._choices.append(self._scroll_down)
-        self.append(self._choices)
+        overlay.add_overlay(self._choices)
+        overlay.connect("get-child-position", self._position_choices)
+        self.connect("unmap", lambda _selector: self.collapse())
         wheel = Gtk.EventControllerScroll.new(Gtk.EventControllerScrollFlags.VERTICAL)
         wheel.connect("scroll", self._wheel_scroll)
         self._choices.add_controller(wheel)
+
+    def _position_choices(self, overlay, child, allocation):
+        if child is not self._choices:
+            return False
+        valid, bounds = self._trigger.compute_bounds(overlay.get_child())
+        if not valid:
+            return False
+        allocation.x = int(bounds.get_x())
+        allocation.y = int(bounds.get_y() + bounds.get_height()) + 4
+        allocation.width = int(bounds.get_width())
+        allocation.height = child.measure(Gtk.Orientation.VERTICAL, allocation.width)[1]
+        return True
 
     def _scroll_button(self, icon_name, delta):
         button = localized(Gtk.Button, halign=Gtk.Align.FILL)
@@ -190,6 +204,7 @@ class GatewayDropDown(Gtk.Box):
         if (len(self._item_identities) != len(self._items)
                 or len(set(self._item_identities)) != len(self._item_identities)):
             raise ValueError("selector requires one unique identity per account")
+        self.collapse()
         self._selected = Gtk.INVALID_LIST_POSITION
         self._scroll_offset = 0
         set_text(self._selected_label, 'label', "")
@@ -263,16 +278,34 @@ class GatewayDropDown(Gtk.Box):
         self._trigger.set_sensitive(enabled)
 
     def _toggle_choices(self, *_args):
-        if not self._trigger.get_sensitive():
+        if not self._trigger.is_sensitive() or not self._choice_buttons:
             return
-        self._set_expanded(not self._choices.get_visible())
+        if not self.collapse():
+            self._before_open()
+            self._set_expanded(True)
 
     def collapse(self):
+        if not self._choices.get_visible():
+            return False
+        root = self.get_root()
+        focus = root.get_focus() if root is not None else None
         self._set_expanded(False)
+        if focus is not None and focus.is_ancestor(self._choices):
+            self._trigger.grab_focus()
+        return True
+
+    def dismiss_unless_target(self, target):
+        if not self._choices.get_visible():
+            return
+        if target is not None and any(
+            target is widget or target.is_ancestor(widget) for widget in (self, self._choices)
+        ):
+            return
+        self.collapse()
 
     def _choose(self, _button, index):
+        self.collapse()
         self.set_selected(index)
-        self._set_expanded(False)
 
     def _set_expanded(self, expanded):
         self._choices.set_visible(expanded)
@@ -282,6 +315,14 @@ class GatewayDropDown(Gtk.Box):
         if expanded:
             self._reveal_selected()
         self._refresh_choice_window()
+        # Give keyboard users an entry point while keeping pointer opens from
+        # scrolling the viewport to the selected option.
+        if expanded and self._trigger.has_visible_focus():
+            focus_index = (
+                self._scroll_offset if self._selected == Gtk.INVALID_LIST_POSITION
+                else self._selected
+            )
+            self._choice_buttons[focus_index].grab_focus()
 
     def _max_scroll_offset(self):
         return max(0, len(self._choice_buttons) - VISIBLE_ACCOUNT_CHOICES)
@@ -339,6 +380,8 @@ class RequestContent(MetalBoard):
         set_automation_id(self, "kiosk-request-form")
         self._duration_buttons = []
         self._account_details = []
+        self._account_icon_width = Gtk.SizeGroup(mode=Gtk.SizeGroupMode.HORIZONTAL)
+        self._account_caption_width = Gtk.SizeGroup(mode=Gtk.SizeGroupMode.HORIZONTAL)
         self._narrow_layout = None
         self._account_uids = []
         self._account_labels = []
@@ -394,6 +437,7 @@ class RequestContent(MetalBoard):
 
         self._accounts = GatewayDropDown(
             "child", m.CHILD_ACCOUNT, self._account_changed,
+            overlay=self._form_overlay, before_open=self.dismiss_account_choices,
         )
         self._accounts.set_hexpand(True)
         child_selector = self._account_row(m.CHILD, self._accounts, identity="child")
@@ -409,7 +453,13 @@ class RequestContent(MetalBoard):
         set_automation_id(self._request_form, "kiosk-request-options")
         self._approvers = GatewayDropDown(
             "approver", m.APPROVING_PARENT, self._approver_changed,
+            overlay=self._form_overlay, before_open=self.dismiss_account_choices,
         )
+        outside_click = Gtk.GestureClick(
+            button=Gdk.BUTTON_PRIMARY, propagation_phase=Gtk.PropagationPhase.CAPTURE,
+        )
+        outside_click.connect("pressed", self._dismiss_account_choices_on_click)
+        self._form_overlay.add_controller(outside_click)
         self._approvers.set_hexpand(True)
         approver_selector = self._account_row(
             m.APPROVER, self._approvers, identity="approver",
@@ -659,6 +709,7 @@ class RequestContent(MetalBoard):
         if name == self._pages.get_visible_child_name():
             return
         self.dismiss_request_menu()
+        self.dismiss_account_choices()
         self._pages.set_visible_child_name(name)
         self._sync_tabs()
 
@@ -744,6 +795,14 @@ class RequestContent(MetalBoard):
             return False
         self._request_menu.popdown()
         return True
+
+    def dismiss_account_choices(self):
+        return self._accounts.collapse() or self._approvers.collapse()
+
+    def _dismiss_account_choices_on_click(self, _gesture, _press_count, x, y):
+        target = self._form_overlay.pick(x, y, Gtk.PickFlags.DEFAULT)
+        self._accounts.dismiss_unless_target(target)
+        self._approvers.dismiss_unless_target(target)
 
     def _build_approved_page(self):
         page = MetalPanel(orientation=Gtk.Orientation.VERTICAL, spacing=10,
@@ -1007,6 +1066,7 @@ class RequestContent(MetalBoard):
         icon.add_css_class("oh-no-parent-control-role-icon")
         icon.set_valign(Gtk.Align.CENTER)
         apply_gtk_user_icon(icon, "", pixel_size=24)
+        self._account_icon_width.add_widget(icon)
         inner.append(icon)
         detail = Gtk.Box(
             spacing=12, hexpand=True,
@@ -1018,10 +1078,11 @@ class RequestContent(MetalBoard):
         label.add_css_class("oh-no-parent-control-account-caption")
         label.set_valign(Gtk.Align.CENTER)
         label.set_vexpand(False)
+        self._account_caption_width.add_widget(label)
         detail.append(label)
         dropdown.set_valign(Gtk.Align.CENTER)
         detail.append(dropdown)
-        self._account_details.append((detail, label))
+        self._account_details.append(detail)
         inner.append(detail)
         row.append(inner)
         return row
@@ -1040,12 +1101,11 @@ class RequestContent(MetalBoard):
         if narrow == self._narrow_layout:
             return
         self._narrow_layout = narrow
-        for detail, caption in self._account_details:
+        for detail in self._account_details:
             detail.set_orientation(
                 Gtk.Orientation.VERTICAL if narrow else Gtk.Orientation.HORIZONTAL,
             )
             detail.set_spacing(2 if narrow else 6)
-            caption.set_width_chars(0 if narrow else 7)
 
     def _layout_custom_row(self, width):
         # Measure the current translations with GTK's actual font, indicator
@@ -1139,8 +1199,6 @@ class RequestContent(MetalBoard):
             self._accounts.set_selected(
                 self._account_uids.index(remembered) if remembered in self._account_uids else 0,
             )
-        if self._lock_child_selector:
-            self._accounts.collapse()
         self._update_ready()
 
     def set_approvers(self, users):
@@ -1538,13 +1596,15 @@ class RequestContent(MetalBoard):
         # AT-SPI reports a widget's own state rather than inferring sensitivity
         # from a disabled ancestor, so disabling only the selector container
         # made the child-overlay trigger appear interactive to assistive tools.
-        if self._lock_child_selector:
+        if not accounts_enabled:
             self._accounts.collapse()
         self._custom_entry.set_sensitive(request_available)
         self._unit_selector.set_sensitive(request_available)
         self._allow_soft.set_sensitive(request_available)
         self._filter_row.set_sensitive(request_available)
         self._approvers.set_sensitive(request_available)
+        if not request_available:
+            self._approvers.collapse()
         for button in self._duration_buttons:
             button.set_sensitive(request_available)
         self._screen_limit_notice.set_visible(
